@@ -1,0 +1,26 @@
+name: Deploy to dev
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::816079798423:role/jobhunter-github-deploy
+          aws-region: us-east-1
+      - run: |
+          pip install aws-cdk-lib constructs
+          npm install -g aws-cdk
+          cd infra && cdk deploy --all --require-approval never -c env=dev
