@@ -1,0 +1,12 @@
+{
+  "app": "python3 app.py",
+  "watch": {
+    "include": ["**"],
+    "exclude": ["README.md", "cdk.out", "dist", ".git"]
+  },
+  "context": {
+    "env": "dev",
+    "account": "816079798423",
+    "region": "us-east-1"
+  }
+}

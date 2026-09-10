@@ -1,0 +1,21 @@
+{
+  "version": "54.0.0",
+  "files": {
+    "03f95b796ee540e293abc27aa20682df9daf5d9567a3a351bf1c5663578a749a": {
+      "displayName": "jobhunter-obs-dev Template",
+      "source": {
+        "path": "jobhunter-obs-dev.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "816079798423-us-east-1-dea3c700": {
+          "bucketName": "cdk-hnb659fds-assets-816079798423-us-east-1",
+          "objectKey": "03f95b796ee540e293abc27aa20682df9daf5d9567a3a351bf1c5663578a749a.json",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::816079798423:role/cdk-hnb659fds-file-publishing-role-816079798423-us-east-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}
