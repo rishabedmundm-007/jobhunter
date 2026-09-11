@@ -66,6 +66,22 @@ export const resendConfirmationCode = async (email: string): Promise<void> => {
   });
 };
 
+export const forgotPassword = async (email: string): Promise<void> => {
+  await cognitoRequest('ForgotPassword', {
+    ClientId: CLIENT_ID,
+    Username: email,
+  });
+};
+
+export const confirmForgotPassword = async (email: string, code: string, newPassword: string): Promise<void> => {
+  await cognitoRequest('ConfirmForgotPassword', {
+    ClientId: CLIENT_ID,
+    Username: email,
+    ConfirmationCode: code,
+    Password: newPassword,
+  });
+};
+
 export const saveTokens = (tokens: CognitoAuthResult) => {
   localStorage.setItem('id_token', tokens.IdToken);
   localStorage.setItem('access_token', tokens.AccessToken);

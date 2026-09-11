@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { signIn, signUp, confirmSignUp, resendConfirmationCode, saveTokens, decodeToken } from '../utils/auth'
+import { signIn, signUp, confirmSignUp, resendConfirmationCode, forgotPassword, confirmForgotPassword, saveTokens, decodeToken } from '../utils/auth'
 import FluidBackground from '../components/FluidBackground'
 
 const REDIRECT_DELAY_MS = 700
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-type Mode = 'signin' | 'signup' | 'confirm'
+type Mode = 'signin' | 'signup' | 'confirm' | 'forgot' | 'reset'
 
 const inputClass =
   'glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-slate-200 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400'
@@ -102,6 +102,38 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
     }
   }
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!EMAIL_PATTERN.test(email.trim())) return setError('Enter a valid email address.')
+    setSubmitting(true)
+    try {
+      await forgotPassword(email.trim())
+      setInfo(`We sent a password reset code to ${email.trim()}.`)
+      setMode('reset')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send reset code')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!code.trim()) return setError('Enter the reset code.')
+    if (password !== confirmPassword) return setError('Passwords do not match.')
+    setSubmitting(true)
+    try {
+      await confirmForgotPassword(email.trim(), code.trim(), password)
+      await finishSignIn(email.trim(), password)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Password reset failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const switchMode = (next: Mode) => {
     setMode(next)
     setError(null)
@@ -132,7 +164,10 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
             Jobsperch
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            {mode === 'confirm' ? 'Verify your email' : 'Automated job search & tracking'}
+            {mode === 'confirm' ? 'Verify your email'
+              : mode === 'forgot' ? 'Reset your password'
+              : mode === 'reset' ? 'Choose a new password'
+              : 'Automated job search & tracking'}
           </p>
         </div>
 
@@ -165,6 +200,11 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
               autoComplete="current-password"
               className={inputClass}
             />
+            <p className="text-right text-xs">
+              <button type="button" onClick={() => switchMode('forgot')} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                Forgot password?
+              </button>
+            </p>
             <motion.button
               ref={buttonRef}
               type="submit"
@@ -254,6 +294,85 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
             </motion.button>
             <p className="text-center text-sm text-slate-500 dark:text-slate-400">
               <button type="button" onClick={handleResend} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                Resend code
+              </button>
+              {' · '}
+              <button type="button" onClick={() => switchMode('signin')} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                Back to sign in
+              </button>
+            </p>
+          </form>
+        )}
+
+        {mode === 'forgot' && (
+          <form onSubmit={handleForgotPassword} className="mt-6 space-y-4" noValidate>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email address"
+              autoComplete="email"
+              className={inputClass}
+            />
+            <motion.button
+              type="submit"
+              disabled={submitting}
+              whileHover={!submitting ? { scale: 1.02 } : undefined}
+              whileTap={!submitting ? { scale: 0.98 } : undefined}
+              className="w-full rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 px-6 py-3 font-semibold text-white shadow-lg shadow-indigo-500/30 transition disabled:opacity-70"
+            >
+              {submitting ? 'Sending…' : 'Send Reset Code'}
+            </motion.button>
+            <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+              <button type="button" onClick={() => switchMode('signin')} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                Back to sign in
+              </button>
+            </p>
+          </form>
+        )}
+
+        {mode === 'reset' && (
+          <form onSubmit={handleResetPassword} className="mt-6 space-y-4" noValidate>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Reset code"
+              autoComplete="one-time-code"
+              className={inputClass}
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="New password"
+              autoComplete="new-password"
+              className={inputClass}
+            />
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new password"
+              autoComplete="new-password"
+              className={inputClass}
+            />
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              At least 12 characters, with uppercase, lowercase, a number, and a symbol.
+            </p>
+            <motion.button
+              ref={buttonRef}
+              type="submit"
+              disabled={submitting || leaving}
+              whileHover={!submitting && !leaving ? { scale: 1.02 } : undefined}
+              whileTap={!submitting && !leaving ? { scale: 0.98 } : undefined}
+              className="w-full rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 px-6 py-3 font-semibold text-white shadow-lg shadow-indigo-500/30 transition disabled:opacity-70"
+            >
+              {leaving ? 'Signing in…' : submitting ? 'Resetting…' : 'Reset Password'}
+            </motion.button>
+            <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+              <button type="button" onClick={() => switchMode('forgot')} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
                 Resend code
               </button>
               {' · '}
