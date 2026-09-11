@@ -41,7 +41,7 @@ export default function NavDrawer({
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 shadow shadow-indigo-500/30">
                   <span className="font-display text-xs font-extrabold text-white">J</span>
                 </div>
-                <span className="font-display text-lg font-extrabold text-ink dark:text-white">JobHunter</span>
+                <span className="font-display text-lg font-extrabold text-ink dark:text-white">Jobsperch</span>
               </div>
               <button
                 onClick={onClose}
@@ -79,7 +79,7 @@ export default function NavDrawer({
             </div>
 
             <div className="mt-auto pt-4 text-center text-xs text-slate-400 dark:text-slate-500">
-              JobHunter · Phase 1
+              Jobsperch · Phase 1
             </div>
           </motion.nav>
         </>

@@ -77,7 +77,7 @@ export default function Welcome({ onUploaded, onSkip }: { onUploaded: () => void
         </motion.div>
 
         <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink dark:text-white">
-          Welcome to JobHunter
+          Welcome to Jobsperch
         </h1>
         <p className="mx-auto mt-2 max-w-sm text-sm text-slate-600 dark:text-slate-400">
           Upload your resume so we can tailor applications and keep everything in one place.

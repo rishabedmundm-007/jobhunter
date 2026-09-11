@@ -3,8 +3,16 @@ from aws_cdk import (
     aws_s3 as s3,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
+    aws_certificatemanager as acm,
 )
 from constructs import Construct
+
+# Certificate requested out-of-band via ACM (must live in us-east-1 for CloudFront)
+# for the jobsperch.com custom domain.
+SITE_CERTIFICATE_ARN = (
+    "arn:aws:acm:us-east-1:816079798423:certificate/6c0889ab-10cc-4a4a-9be7-d48fd1a0f611"
+)
+SITE_DOMAIN_NAMES = ["jobsperch.com", "www.jobsperch.com"]
 
 
 class WebStack(cdk.Stack):
@@ -12,6 +20,7 @@ class WebStack(cdk.Stack):
         super().__init__(scope, id, **kwargs)
 
         self.env_name = env_name
+        self.domain_names = SITE_DOMAIN_NAMES
 
         self.web_bucket = s3.Bucket(
             self,
@@ -19,6 +28,10 @@ class WebStack(cdk.Stack):
             bucket_name=f"jobhunter-web-{self.account}-{env_name}",
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             encryption=s3.BucketEncryption.S3_MANAGED,
+        )
+
+        certificate = acm.Certificate.from_certificate_arn(
+            self, "SiteCertificate", SITE_CERTIFICATE_ARN
         )
 
         self.distribution = cloudfront.Distribution(
@@ -31,6 +44,8 @@ class WebStack(cdk.Stack):
             ),
             default_root_object="index.html",
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
+            domain_names=self.domain_names,
+            certificate=certificate,
         )
 
         cdk.CfnOutput(
@@ -45,6 +60,13 @@ class WebStack(cdk.Stack):
             "CloudFrontUrl",
             value=f"https://{self.distribution.domain_name}",
             export_name=f"jobhunter-web-url-{env_name}",
+        )
+
+        cdk.CfnOutput(
+            self,
+            "SiteUrl",
+            value=f"https://{self.domain_names[0]}",
+            export_name=f"jobhunter-site-url-{env_name}",
         )
 
         cdk.CfnOutput(

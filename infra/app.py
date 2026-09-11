@@ -26,6 +26,7 @@ auth = AuthStack(
     env=env,
     env_name=env_name,
     cloudfront_domain=web.distribution.domain_name,
+    custom_domains=web.domain_names,
 )
 data = DataStack(app, f"jobhunter-data-{env_name}", env=env, env_name=env_name)
 api = ApiStack(

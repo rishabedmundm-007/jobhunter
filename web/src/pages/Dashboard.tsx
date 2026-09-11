@@ -108,7 +108,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <span className="font-display text-sm font-extrabold text-white">J</span>
               </div>
               <h1 className="font-display text-xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 bg-clip-text text-transparent">
-                JobHunter
+                Jobsperch
               </h1>
             </div>
           </div>

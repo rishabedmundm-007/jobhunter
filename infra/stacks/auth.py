@@ -4,11 +4,24 @@ import aws_cdk as cdk
 from aws_cdk import aws_cognito as cognito
 from constructs import Construct
 
+# Verified via SES for sending Cognito's signup/verification emails from a real
+# domain instead of Cognito's default (unreliable) sender.
+SES_VERIFIED_DOMAIN = "jobsperch.com"
+SES_FROM_EMAIL = f"noreply@{SES_VERIFIED_DOMAIN}"
+
 
 class AuthStack(cdk.Stack):
     """Manages authentication via Cognito User Pool."""
 
-    def __init__(self, scope: Construct, id: str, env_name: str, cloudfront_domain: str, **kwargs):
+    def __init__(
+        self,
+        scope: Construct,
+        id: str,
+        env_name: str,
+        cloudfront_domain: str,
+        custom_domains: list[str] | None = None,
+        **kwargs,
+    ):
         super().__init__(scope, id, **kwargs)
 
         self.env_name = env_name
@@ -28,15 +41,24 @@ class AuthStack(cdk.Stack):
                 require_digits=True,
                 require_symbols=True,
             ),
+            email=cognito.UserPoolEmail.with_ses(
+                from_email=SES_FROM_EMAIL,
+                from_name="JobHunter",
+                ses_verified_domain=SES_VERIFIED_DOMAIN,
+                ses_region="us-east-1",
+            ),
         )
 
-        # Hosted UI needs to redirect back to the deployed SPA (and localhost for local dev).
+        # Hosted UI needs to redirect back to the deployed SPA (custom domain,
+        # CloudFront domain, and localhost for local dev).
         callback_urls = [
             f"https://{cloudfront_domain}",
             f"https://{cloudfront_domain}/",
             "http://localhost:5173",
             "http://localhost:5173/",
         ]
+        for domain in custom_domains or []:
+            callback_urls += [f"https://{domain}", f"https://{domain}/"]
 
         # User pool client
         self.user_pool_client = self.user_pool.add_client(

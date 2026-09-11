@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>JobHunter</title>
+    <title>Jobsperch</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,9 +12,9 @@
     />
     <script>
       (function () {
-        var stored = localStorage.getItem('theme');
-        var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (dark) document.documentElement.classList.add('dark');
+        // Always starts in light mode; dark mode (if chosen) only persists
+        // for the current tab session, never across a fresh visit.
+        if (sessionStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
       })();
     </script>
   </head>
