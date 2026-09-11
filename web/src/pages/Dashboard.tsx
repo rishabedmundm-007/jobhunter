@@ -11,7 +11,6 @@ import NavDrawer from '../components/NavDrawer'
 import AvatarMenu from '../components/AvatarMenu'
 import EditProfileModal from '../components/EditProfileModal'
 import ConnectedAccountsModal from '../components/ConnectedAccountsModal'
-import ResumeModal from '../components/ResumeModal'
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -23,7 +22,6 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editTab, setEditTab] = useState<'account' | 'preferences' | null>(null)
   const [connectedAccountsOpen, setConnectedAccountsOpen] = useState(false)
-  const [resumeOpen, setResumeOpen] = useState(false)
   const [isDark, toggleDark] = useDarkMode()
 
   useEffect(() => {
@@ -138,7 +136,6 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         onOpenAccountSettings={() => { setDrawerOpen(false); setEditTab('account') }}
         onOpenJobPreferences={() => { setDrawerOpen(false); setEditTab('preferences') }}
         onOpenConnectedAccounts={() => { setDrawerOpen(false); setConnectedAccountsOpen(true) }}
-        onOpenResume={() => { setDrawerOpen(false); setResumeOpen(true) }}
         isDark={isDark}
         onToggleDark={toggleDark}
       />
@@ -147,10 +144,6 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         {connectedAccountsOpen && (
           <ConnectedAccountsModal onClose={() => setConnectedAccountsOpen(false)} />
         )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {resumeOpen && <ResumeModal onClose={() => setResumeOpen(false)} />}
       </AnimatePresence>
 
       <AnimatePresence>

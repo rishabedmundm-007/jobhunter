@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Toggle from './Toggle'
+import ResumePanel from './ResumePanel'
+import { fluidSpring } from '../utils/motion'
 
 export default function NavDrawer({
   open,
@@ -7,7 +10,6 @@ export default function NavDrawer({
   onOpenAccountSettings,
   onOpenJobPreferences,
   onOpenConnectedAccounts,
-  onOpenResume,
   isDark,
   onToggleDark,
 }: {
@@ -16,10 +18,11 @@ export default function NavDrawer({
   onOpenAccountSettings: () => void
   onOpenJobPreferences: () => void
   onOpenConnectedAccounts: () => void
-  onOpenResume: () => void
   isDark: boolean
   onToggleDark: () => void
 }) {
+  const [resumeExpanded, setResumeExpanded] = useState(false)
+
   return (
     <AnimatePresence>
       {open && (
@@ -29,15 +32,15 @@ export default function NavDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-ink/30 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-ink/30 backdrop-blur-md"
             aria-hidden="true"
           />
           <motion.nav
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="glass-solid fixed inset-y-0 left-0 z-50 flex w-72 flex-col p-5 shadow-2xl"
+            transition={fluidSpring}
+            className="glass-solid fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-y-auto p-5 shadow-2xl"
             aria-label="Main menu"
           >
             <div className="mb-6 flex items-center justify-between">
@@ -73,12 +76,35 @@ export default function NavDrawer({
             </button>
 
             <button
-              onClick={onOpenResume}
+              onClick={() => setResumeExpanded(v => !v)}
+              aria-expanded={resumeExpanded}
               className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-indigo-50 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
             >
               <span aria-hidden="true">📄</span>
               My Resume
+              <motion.span
+                animate={{ rotate: resumeExpanded ? 180 : 0 }}
+                transition={fluidSpring}
+                className="ml-auto text-xs text-slate-400"
+                aria-hidden="true"
+              >
+                ▾
+              </motion.span>
             </button>
+            <AnimatePresence initial={false}>
+              {resumeExpanded && (
+                <motion.div
+                  key="resume-panel"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={fluidSpring}
+                  className="overflow-hidden"
+                >
+                  <ResumePanel />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <button
               onClick={onOpenConnectedAccounts}

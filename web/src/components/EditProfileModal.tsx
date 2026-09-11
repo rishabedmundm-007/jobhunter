@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { profileApi } from '../services/api'
+import { fluidSpring } from '../utils/motion'
 import { useToast } from '../hooks/useToast'
 import Dropdown from './Dropdown'
 import { ContactInfo, Preferences } from '../types'
@@ -107,14 +108,14 @@ export default function EditProfileModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-md"
     >
       <motion.div
         onClick={(e) => e.stopPropagation()}
         initial={{ opacity: 0, scale: 0.94, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96 }}
-        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        transition={fluidSpring}
         className="glass-solid max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl p-8 shadow-2xl"
       >
         <div className="mb-5 flex items-center justify-between">
