@@ -29,7 +29,7 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_AVATAR_BYTES = 5 * 1024 * 1024
-AVATAR_URL_TTL_SECONDS = 3600
+PRESIGNED_URL_TTL_SECONDS = 3600
 
 # Fixed option sets: the future scraping/matching module keys off these exact
 # values, so preferences are validated against them rather than accepted as
@@ -174,6 +174,11 @@ def _profile_response(profile: Dict) -> Dict:
             "filename": profile.get("resume_filename"),
             "size": profile.get("resume_size"),
             "uploaded_at": profile.get("resume_uploaded_at"),
+            "download_url": s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": BUCKET_NAME, "Key": profile["resume_key"]},
+                ExpiresIn=PRESIGNED_URL_TTL_SECONDS,
+            ),
         }
     contact = None
     if profile and "first_name" in profile:
@@ -182,7 +187,7 @@ def _profile_response(profile: Dict) -> Dict:
             avatar_url = s3.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": BUCKET_NAME, "Key": profile["avatar_key"]},
-                ExpiresIn=AVATAR_URL_TTL_SECONDS,
+                ExpiresIn=PRESIGNED_URL_TTL_SECONDS,
             )
         contact = {
             "first_name": profile.get("first_name"),
@@ -390,14 +395,7 @@ def confirm_resume_handler(event: Dict[str, Any], context: Any) -> Dict:
             profile = update_profile(user_sub, embedding_updates)
         return response(
             200,
-            {
-                "resume": {
-                    "key": profile["resume_key"],
-                    "filename": profile.get("resume_filename"),
-                    "size": profile.get("resume_size"),
-                    "uploaded_at": profile.get("resume_uploaded_at"),
-                }
-            },
+            {"resume": _profile_response(profile)["resume"]},
         )
     except KeyError as e:
         return response(400, {"error": f"Missing required field: {e}"})

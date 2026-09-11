@@ -7,6 +7,7 @@ export default function NavDrawer({
   onOpenAccountSettings,
   onOpenJobPreferences,
   onOpenConnectedAccounts,
+  onOpenResume,
   isDark,
   onToggleDark,
 }: {
@@ -15,6 +16,7 @@ export default function NavDrawer({
   onOpenAccountSettings: () => void
   onOpenJobPreferences: () => void
   onOpenConnectedAccounts: () => void
+  onOpenResume: () => void
   isDark: boolean
   onToggleDark: () => void
 }) {
@@ -68,6 +70,14 @@ export default function NavDrawer({
             >
               <span aria-hidden="true">🎯</span>
               Job Preferences
+            </button>
+
+            <button
+              onClick={onOpenResume}
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-indigo-50 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            >
+              <span aria-hidden="true">📄</span>
+              My Resume
             </button>
 
             <button

@@ -49,6 +49,7 @@ export interface Resume {
   filename: string;
   size: number;
   uploaded_at: string;
+  download_url?: string;
 }
 
 export interface Preferences {

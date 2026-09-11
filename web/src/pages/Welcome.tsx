@@ -4,9 +4,10 @@ import { profileApi } from '../services/api'
 import { useToast } from '../hooks/useToast'
 import FluidBackground from '../components/FluidBackground'
 
+// .doc (legacy binary Word format) isn't accepted — the backend can't extract
+// text from it for matching/tailoring, only from PDF/.docx.
 const ALLOWED_TYPES = new Set([
   'application/pdf',
-  'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ])
 const MAX_BYTES = 10 * 1024 * 1024
@@ -26,7 +27,7 @@ export default function Welcome({ onUploaded, onSkip }: { onUploaded: () => void
 
   const pickFile = (candidate: File) => {
     if (!ALLOWED_TYPES.has(candidate.type)) {
-      setFileError('Please upload a PDF or Word document (.pdf, .doc, .docx).')
+      setFileError('Please upload a PDF or Word document (.pdf or .docx).')
       return
     }
     if (candidate.size > MAX_BYTES) {
@@ -99,7 +100,7 @@ export default function Welcome({ onUploaded, onSkip }: { onUploaded: () => void
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f) }}
           />
