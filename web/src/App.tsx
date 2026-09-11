@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { BrowserRouter } from 'react-router-dom'
 import { isAuthenticated, clearTokens } from './utils/auth'
 import { profileApi } from './services/api'
 import Login from './pages/Login'
@@ -47,5 +48,9 @@ export default function App() {
   if (step === 'loading') return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   if (step === 'welcome') return <Welcome onUploaded={loadOnboardingStep} onSkip={handleSkipResume} />
   if (step === 'preferences') return <Preferences onDone={loadOnboardingStep} />
-  return <Dashboard onLogout={handleLogout} />
+  return (
+    <BrowserRouter>
+      <Dashboard onLogout={handleLogout} />
+    </BrowserRouter>
+  )
 }

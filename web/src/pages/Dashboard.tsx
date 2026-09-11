@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Routes, Route, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { jobsApi, profileApi } from '../services/api'
 import { ws } from '../services/websocket'
@@ -10,6 +11,8 @@ import FluidBackground from '../components/FluidBackground'
 import NavDrawer from '../components/NavDrawer'
 import AvatarMenu from '../components/AvatarMenu'
 import EditProfileModal from '../components/EditProfileModal'
+import JobListPage from './JobListPage'
+import RunDetailPage from './RunDetailPage'
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -111,14 +114,14 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               <span className="h-0.5 w-5 rounded-full bg-slate-700 dark:bg-slate-200" />
               <span className="h-0.5 w-5 rounded-full bg-slate-700 dark:bg-slate-200" />
             </button>
-            <div className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-lg">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 shadow shadow-indigo-500/30">
                 <span className="font-display text-sm font-extrabold text-white">J</span>
               </div>
               <h1 className="font-display text-xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 bg-clip-text text-transparent">
                 Jobsperch
               </h1>
-            </div>
+            </Link>
           </div>
           <AvatarMenu
             contact={contact}
@@ -172,8 +175,22 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             </motion.div>
           )}
         </AnimatePresence>
-        <StatsPanel jobs={jobs} latestRun={latestRun} />
-        <KanbanBoard jobs={jobs} onJobsChange={setJobs} firstName={contact?.first_name} />
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <StatsPanel jobs={jobs} latestRun={latestRun} />
+                <KanbanBoard jobs={jobs} onJobsChange={setJobs} firstName={contact?.first_name} />
+              </>
+            }
+          />
+          <Route path="/board/all" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="all" />} />
+          <Route path="/board/state/:state" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="state" />} />
+          <Route path="/board/tailored-today" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="tailored-today" />} />
+          <Route path="/board/scored" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="scored" />} />
+          <Route path="/board/last-run" element={<RunDetailPage latestRun={latestRun} />} />
+        </Routes>
       </main>
     </div>
   )

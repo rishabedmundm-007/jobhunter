@@ -46,6 +46,23 @@ class WebStack(cdk.Stack):
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
             domain_names=self.domain_names,
             certificate=certificate,
+            # Client-side routes (e.g. /board/state/APPLIED) have no matching S3
+            # object — a direct hit or refresh on one is a real HTTP request for
+            # that path, which S3 would 403 on. Fall back to index.html (as a
+            # real 200, not a redirect) so the SPA loads and React Router takes
+            # over client-side.
+            error_responses=[
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                ),
+            ],
         )
 
         cdk.CfnOutput(
