@@ -1,7 +1,6 @@
 import aws_cdk as cdk
 from aws_cdk import (
     aws_lambda as lambda_,
-    aws_ecr_assets as ecr_assets,
     aws_iam as iam,
     aws_logs as logs,
     aws_stepfunctions as sfn,
@@ -98,29 +97,6 @@ class PipelineStack(cdk.Stack):
             memory_size=512,
         )
 
-        browser_adapter_fn = lambda_.DockerImageFunction(
-            self,
-            "BrowserAdapterFunction",
-            code=lambda_.DockerImageCode.from_image_asset(
-                "../services",
-                file="ingest/browser_adapter/Dockerfile",
-                # Pinned explicitly so the build is reproducible regardless of the
-                # host machine's native architecture (not left to Docker's default,
-                # which silently mismatched Lambda's default X86_64 architecture
-                # and failed at cold start with "Runtime.InvalidEntrypoint").
-                platform=ecr_assets.Platform.LINUX_ARM64,
-            ),
-            architecture=lambda_.Architecture.ARM_64,
-            role=pipeline_role,
-            environment=common_env,
-            timeout=cdk.Duration.minutes(15),
-            # 2048MB proved marginal for Chromium running two browser contexts —
-            # Lambda scales allocated vCPU with memory, so more memory here also
-            # means a faster, more stable Chromium, not just headroom.
-            memory_size=3008,
-            ephemeral_storage_size=cdk.Size.gibibytes(2),
-        )
-
         match_fn = lambda_.Function(
             self,
             "MatchFunction",
@@ -163,11 +139,12 @@ class PipelineStack(cdk.Stack):
         # Step Functions Express: one execution per active user.
         # ---------------------------------------------------------------
 
-        # Each source is independent and best-effort — a Parallel state fails its
-        # whole execution if any one branch throws, which would let the fragile,
-        # disclosed-as-fragile browser adapter (§ADR-0003 override) take down the
-        # legitimate API sources too. Catch each branch so one source's outage
-        # never blocks the others.
+        # Kept as a single-branch Parallel (rather than a plain chain) so a
+        # future legitimate source (RSS, C2C email parsing — see
+        # docs/02-module-breakdown.md M3) drops in as another branch without
+        # restructuring the state machine. Each branch is independent and
+        # best-effort — a Parallel state fails its whole execution if any one
+        # branch throws, so a source's outage must never take down the others.
         empty_ingest_result = {"sources_run": [], "ingested_count": 0, "errors": ["adapter_failed"]}
 
         ingest_api_task = tasks.LambdaInvoke(
@@ -178,22 +155,8 @@ class PipelineStack(cdk.Stack):
             errors=["States.ALL"],
         )
 
-        ingest_browser_task = tasks.LambdaInvoke(
-            self,
-            "IngestBrowserSources",
-            lambda_function=browser_adapter_fn,
-            payload_response_only=True,
-        )
-        ingest_browser_task.add_catch(
-            sfn.Pass(
-                self, "BrowserSourcesFailed", result=sfn.Result.from_object(empty_ingest_result)
-            ),
-            errors=["States.ALL"],
-        )
-
         ingest_parallel = sfn.Parallel(self, "IngestSources", result_path="$.ingest_results")
         ingest_parallel.branch(ingest_api_task)
-        ingest_parallel.branch(ingest_browser_task)
 
         match_task = tasks.LambdaInvoke(
             self,

@@ -408,67 +408,6 @@ class ApiStack(cdk.Stack):
             authorizer=jwt_authorizer,
         )
 
-        # ---------------------------------------------------------------
-        # Connected accounts — LinkedIn/Indeed login the browser-adapter
-        # ingestion Lambda (infra/stacks/pipeline.py) uses. Credentials go
-        # straight to SSM, never through DynamoDB.
-        # ---------------------------------------------------------------
-
-        integration_fn_env = {
-            "TABLE_NAME": self.data_stack.main_table.table_name,
-            "ENV_NAME": env_name,
-        }
-        lambda_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=["ssm:PutParameter"],
-                resources=[
-                    f"arn:aws:ssm:{self.region}:{self.account}:parameter/jobhunter/{env_name}/users/*"
-                ],
-            )
-        )
-
-        save_integration_fn = lambda_.Function(
-            self,
-            "SaveIntegrationCredentialsFunction",
-            runtime=lambda_.Runtime.PYTHON_3_12,
-            handler="api.integration_handlers.save_integration_credentials_handler",
-            code=services_code,
-            role=lambda_role,
-            environment=integration_fn_env,
-            timeout=cdk.Duration.seconds(10),
-            memory_size=256,
-        )
-
-        get_integrations_fn = lambda_.Function(
-            self,
-            "GetIntegrationsFunction",
-            runtime=lambda_.Runtime.PYTHON_3_12,
-            handler="api.integration_handlers.get_integrations_handler",
-            code=services_code,
-            role=lambda_role,
-            environment=integration_fn_env,
-            timeout=cdk.Duration.seconds(10),
-            memory_size=256,
-        )
-
-        self.http_api.add_routes(
-            path="/integrations",
-            methods=[apigw.HttpMethod.GET],
-            integration=integrations.HttpLambdaIntegration(
-                "GetIntegrationsIntegration", get_integrations_fn
-            ),
-            authorizer=jwt_authorizer,
-        )
-
-        self.http_api.add_routes(
-            path="/integrations/{provider}",
-            methods=[apigw.HttpMethod.PUT],
-            integration=integrations.HttpLambdaIntegration(
-                "SaveIntegrationIntegration", save_integration_fn
-            ),
-            authorizer=jwt_authorizer,
-        )
-
         cdk.CfnOutput(
             self,
             "HttpApiEndpoint",

@@ -8,6 +8,7 @@ summary — no job payloads flow back through the state machine.
 import json
 import logging
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -145,6 +146,73 @@ def _fetch_remotive(keywords: str) -> List[Dict]:
     ]
 
 
+def _fetch_remoteok_raw() -> List[Dict]:
+    # No server-side search/filter support — the API just returns its recent
+    # catalog (a few hundred postings); the first element is a legal notice,
+    # not a job. Fetched once per run (see the closure cache in lambda_handler
+    # below) and filtered client-side per role, instead of once per role.
+    resp = httpx.get(
+        "https://remoteok.com/api",
+        headers={"User-Agent": "Jobsperch/1.0 (+https://jobsperch.com)"},
+        timeout=HTTP_TIMEOUT,
+    )
+    resp.raise_for_status()
+    return [d for d in resp.json() if isinstance(d, dict) and d.get("id")]
+
+
+def _filter_remoteok(raw_jobs: List[Dict], keywords: str) -> List[Dict]:
+    kw_tokens = set(keywords.lower().split())
+    out = []
+    for j in raw_jobs:
+        haystack = f"{j.get('position', '')} {' '.join(j.get('tags') or [])}"
+        if not (kw_tokens & set(re.findall(r"[a-z0-9+#]+", haystack.lower()))):
+            continue
+        out.append(
+            {
+                "external_id": str(j.get("id")),
+                "title": j.get("position", ""),
+                "company": j.get("company", ""),
+                "location": j.get("location") or "Remote",
+                "description": j.get("description", ""),
+                "link": j.get("url", ""),
+                "posted_at": j.get("date"),
+            }
+        )
+    return out
+
+
+def _fetch_jsearch(keywords: str, location: str) -> List[Dict]:
+    creds = _ssm_json(f"/jobhunter/{ENV_NAME}/jsearch")
+    if not creds:
+        return []
+    resp = httpx.get(
+        "https://jsearch.p.rapidapi.com/search",
+        params={"query": f"{keywords} in {location}", "date_posted": "today", "num_pages": "1"},
+        headers={
+            "X-RapidAPI-Key": creds["api_key"],
+            "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+        },
+        timeout=HTTP_TIMEOUT,
+    )
+    resp.raise_for_status()
+    results = resp.json().get("data", [])
+    out = []
+    for r in results:
+        job_location = ", ".join(filter(None, [r.get("job_city"), r.get("job_state")]))
+        out.append(
+            {
+                "external_id": r.get("job_id", ""),
+                "title": r.get("job_title", ""),
+                "company": r.get("employer_name", ""),
+                "location": job_location,
+                "description": r.get("job_description", ""),
+                "link": r.get("job_apply_link", ""),
+                "posted_at": r.get("job_posted_at_datetime_utc"),
+            }
+        )
+    return out
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
     user_sub = event["user_sub"]
     profile = get_profile(user_sub) or {}
@@ -156,10 +224,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
     ingested = 0
     errors: List[str] = []
 
+    remoteok_cache: Dict[str, Optional[List[Dict]]] = {"jobs": None}
+
+    def fetch_remoteok(kw: str) -> List[Dict]:
+        if remoteok_cache["jobs"] is None:
+            remoteok_cache["jobs"] = _fetch_remoteok_raw()
+        return _filter_remoteok(remoteok_cache["jobs"], kw)
+
     fetchers = {
         "adzuna": lambda kw: _fetch_adzuna(kw, location),
         "usajobs": lambda kw: _fetch_usajobs(kw, location),
         "remotive": lambda kw: _fetch_remotive(kw),
+        "remoteok": fetch_remoteok,
+        "jsearch": lambda kw: _fetch_jsearch(kw, location),
     }
 
     for role in job_roles:

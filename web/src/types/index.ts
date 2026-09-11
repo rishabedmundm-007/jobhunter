@@ -8,7 +8,7 @@ export type JobState =
   | "IN_PROGRESS"
   | "DECISION";
 
-export type JobSource = "adzuna" | "usajobs" | "remotive" | "linkedin" | "indeed" | "manual";
+export type JobSource = "adzuna" | "usajobs" | "remotive" | "remoteok" | "jsearch" | "manual";
 
 export interface Job {
   id: string;
@@ -84,11 +84,4 @@ export interface Profile {
   contact: ContactInfo | null;
   preferences: Preferences | null;
   latest_run?: PipelineRun | null;
-}
-
-export type IntegrationProvider = "linkedin" | "indeed";
-
-export interface IntegrationStatus {
-  connected: boolean;
-  status: string | null;
 }

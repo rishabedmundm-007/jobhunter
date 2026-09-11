@@ -2,6 +2,7 @@ import hashlib
 import boto3
 import os
 from botocore.exceptions import ClientError
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 ddb = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
@@ -9,8 +10,22 @@ TABLE_NAME = os.environ.get("TABLE_NAME", "jobhunter-main-dev")
 table = ddb.Table(TABLE_NAME)
 
 
+def _dynamo_safe(value: Any) -> Any:
+    """DynamoDB's boto3 Table resource rejects native Python floats outright
+    ("Float types are not supported. Use Decimal types instead.") — this bites
+    anything numeric that isn't an int: match scores, embedding vectors, etc.
+    Recursively convert via str() to avoid binary-float rounding artifacts."""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {k: _dynamo_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_dynamo_safe(v) for v in value]
+    return value
+
+
 def create_job(user_sub: str, job_id: str, job_data: Dict[str, Any]) -> Dict:
-    item = {"PK": f"USER#{user_sub}", "SK": f"JOB#{job_id}", **job_data}
+    item = _dynamo_safe({"PK": f"USER#{user_sub}", "SK": f"JOB#{job_id}", **job_data})
     table.put_item(Item=item)
     return item
 
@@ -26,7 +41,7 @@ def upsert_discovered_job(user_sub: str, job_id: str, job_data: Dict[str, Any]) 
     Returns True if inserted, False if it already existed (a no-op — this preserves
     any state/notes the user already set on a job we've seen before).
     """
-    item = {"PK": f"USER#{user_sub}", "SK": f"JOB#{job_id}", **job_data}
+    item = _dynamo_safe({"PK": f"USER#{user_sub}", "SK": f"JOB#{job_id}", **job_data})
     try:
         table.put_item(Item=item, ConditionExpression="attribute_not_exists(PK)")
         return True
@@ -61,6 +76,7 @@ def get_jobs(user_sub: str, state: Optional[str] = None, limit: int = 50) -> Lis
 
 
 def update_job(user_sub: str, job_id: str, updates: Dict[str, Any]) -> Dict:
+    updates = _dynamo_safe(updates)
     # Attribute name placeholders avoid collisions with reserved words (e.g. "state").
     update_expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates.keys())
     response = table.update_item(
@@ -83,6 +99,7 @@ def get_profile(user_sub: str) -> Optional[Dict]:
 
 
 def update_profile(user_sub: str, updates: Dict[str, Any]) -> Dict:
+    updates = _dynamo_safe(updates)
     key = {"PK": f"USER#{user_sub}", "SK": "PROFILE"}
     update_expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates.keys())
     response = table.update_item(
@@ -119,37 +136,13 @@ def get_shortlisted_jobs_missing_resume(user_sub: str) -> List[Dict]:
 
 
 def put_resume_version(user_sub: str, job_id: str, resume_data: Dict[str, Any]) -> Dict:
-    item = {"PK": f"USER#{user_sub}", "SK": f"RESUME#{job_id}", **resume_data}
+    item = _dynamo_safe({"PK": f"USER#{user_sub}", "SK": f"RESUME#{job_id}", **resume_data})
     table.put_item(Item=item)
     return item
-
-
-def get_integration(user_sub: str, provider: str) -> Optional[Dict]:
-    response = table.get_item(Key={"PK": f"USER#{user_sub}", "SK": f"INTEGRATION#{provider}"})
-    return response.get("Item")
-
-
-def put_integration(user_sub: str, provider: str, data: Dict[str, Any]) -> Dict:
-    item = {"PK": f"USER#{user_sub}", "SK": f"INTEGRATION#{provider}", **data}
-    table.put_item(Item=item)
-    return item
-
-
-def update_integration(user_sub: str, provider: str, updates: Dict[str, Any]) -> Dict:
-    key = {"PK": f"USER#{user_sub}", "SK": f"INTEGRATION#{provider}"}
-    update_expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates.keys())
-    response = table.update_item(
-        Key=key,
-        UpdateExpression=update_expr,
-        ExpressionAttributeNames={f"#{k}": k for k in updates.keys()},
-        ExpressionAttributeValues={f":{k}": v for k, v in updates.items()},
-        ReturnValues="ALL_NEW",
-    )
-    return response["Attributes"]
 
 
 def put_run(user_sub: str, run_id: str, run_data: Dict[str, Any]) -> Dict:
-    item = {"PK": f"USER#{user_sub}", "SK": f"RUN#{run_id}", **run_data}
+    item = _dynamo_safe({"PK": f"USER#{user_sub}", "SK": f"RUN#{run_id}", **run_data})
     table.put_item(Item=item)
     return item
 

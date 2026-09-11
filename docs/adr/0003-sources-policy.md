@@ -1,7 +1,7 @@
 # ADR-0003: Job ingestion sources policy
 
 **Date:** 2026-09-10
-**Status:** Superseded by explicit override (see below)
+**Status:** Accepted (reaffirmed after a same-day override attempt — see below)
 **Deciders:** Rishab
 
 ## Context
@@ -38,27 +38,33 @@ Neutral:
 - **API aggregators only:** Narrower source coverage; not chosen
 - **Manual entry:** Users can paste a job URL and we parse it as a fallback
 
-## Related decisions
-
-None yet.
-
-## Override (2026-09-10, same day)
+## Override attempt and reversal (2026-09-10 to 2026-09-11)
 
 When the ingestion/matching/tailoring module was implemented, the user was asked
 directly whether to follow this ADR or override it, was explicitly warned of the
 ToS-violation, account-suspension, and technical-fragility risks, and chose to
-override it **twice** after that warning: LinkedIn and Indeed are ingested via
-direct browser automation (Playwright, the user's own login) alongside the
-originally-approved sources, which remain in place unchanged.
+override it: LinkedIn and Indeed were ingested via direct browser automation
+(Playwright, the user's own login) alongside the originally-approved sources.
 
-Guardrails kept from the original decision, even under the override:
-- No CAPTCHA-solving, proxy rotation, or fingerprint spoofing — a login
-  challenge or unrecognized page is a hard failure for that run
-  (`INTEGRATION#<provider>.status = "challenge_required"`), never fought through
-  or retried aggressively.
-- Read-only: this adapter discovers and describes postings; it never submits an
-  application or fills a form (see ADR-0004 — that stays human-gated regardless
-  of source).
+Guardrails kept even under the override: no CAPTCHA-solving, proxy rotation, or
+fingerprint spoofing — a login challenge or unrecognized page was treated as a
+hard failure for that run, never fought through; read-only (discover/describe
+only, never submit an application, per ADR-0004 regardless of source).
 
-See `services/ingest/browser_adapter/` for the implementation and its inline
-disclosure of this override.
+**Within the first real test runs, both sources hit exactly the failure mode
+this ADR predicted** — confirmed with captured screenshots, not assumed:
+- LinkedIn presented a live Google reCAPTCHA on login from the Lambda's IP.
+- Indeed returned a Cloudflare "Request Blocked" page (Ray ID + IP logged) on
+  every request, not genuine zero-result searches.
+
+The user decided to accept this outcome rather than pursue evasion (proxy
+rotation, CAPTCHA-solving, or a manual cookie handoff), which this project
+was never going to build regardless. **The browser-automation adapter and all
+supporting code (Connected Accounts credential storage, the container Lambda,
+the DynamoDB `INTEGRATION#` items) have been fully removed.** The original
+decision — API/RSS/inbox sources only — stands as accepted, now validated by
+a real, not just theoretical, failure.
+
+## Related decisions
+
+None yet.

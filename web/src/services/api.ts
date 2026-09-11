@@ -1,4 +1,4 @@
-import { ContactInfo, IntegrationProvider, IntegrationStatus, Job, JobCreateInput, JobUpdateInput, Preferences, Profile, Resume } from '../types';
+import { ContactInfo, Job, JobCreateInput, JobUpdateInput, Preferences, Profile, Resume } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -124,25 +124,5 @@ export const profileApi = {
     });
     if (!confirmRes.ok) throw new Error('Failed to confirm photo upload');
     return confirmRes.json();
-  },
-};
-
-export const integrationsApi = {
-  async getIntegrations(): Promise<Record<IntegrationProvider, IntegrationStatus>> {
-    const res = await fetch(`${API_URL}/integrations`, { headers: headers() });
-    if (!res.ok) throw new Error('Failed to load connected accounts');
-    return res.json();
-  },
-
-  async saveCredentials(provider: IntegrationProvider, username: string, password: string): Promise<void> {
-    const res = await fetch(`${API_URL}/integrations/${provider}`, {
-      method: 'PUT',
-      headers: headers(),
-      body: JSON.stringify({ username, password }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to save credentials');
-    }
   },
 };
