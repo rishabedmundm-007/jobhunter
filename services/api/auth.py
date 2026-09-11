@@ -1,18 +1,13 @@
-import json
-import base64
-from typing import Dict, Any
+from typing import Any, Dict
+
 
 def get_user_from_token(event: Dict[str, Any]) -> str:
-    auth_header = event.get('headers', {}).get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
-        raise ValueError('Missing or invalid Authorization header')
-    token = auth_header[7:]
+    """Read the verified user sub from API Gateway's JWT authorizer context.
+
+    API Gateway validates the token's signature, issuer, and audience against
+    the Cognito user pool before invoking the handler, so this claim is trusted.
+    """
     try:
-        payload = token.split('.')[1]
-        padding = 4 - (len(payload) % 4)
-        payload += '=' * padding
-        decoded = base64.urlsafe_b64decode(payload)
-        claims = json.loads(decoded)
-        return claims['sub']
-    except Exception as e:
-        raise ValueError(f'Failed to decode token: {e}')
+        return event["requestContext"]["authorizer"]["jwt"]["claims"]["sub"]
+    except KeyError:
+        raise ValueError("Missing authorizer claims")

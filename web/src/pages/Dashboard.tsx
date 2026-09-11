@@ -1,17 +1,31 @@
 import { useState, useEffect } from 'react'
-import { jobsApi } from '../services/api'
+import { motion, AnimatePresence } from 'framer-motion'
+import { jobsApi, profileApi } from '../services/api'
 import { ws } from '../services/websocket'
-import { Job } from '../types'
+import { ContactInfo, Job, Preferences } from '../types'
+import { useDarkMode } from '../hooks/useDarkMode'
 import KanbanBoard from '../components/KanbanBoard'
+import StatsPanel from '../components/StatsPanel'
+import FluidBackground from '../components/FluidBackground'
+import NavDrawer from '../components/NavDrawer'
+import AvatarMenu from '../components/AvatarMenu'
+import EditProfileModal from '../components/EditProfileModal'
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [contact, setContact] = useState<ContactInfo | null>(null)
+  const [preferences, setPreferences] = useState<Preferences | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [editTab, setEditTab] = useState<'account' | 'preferences' | null>(null)
+  const [isDark, toggleDark] = useDarkMode()
 
   useEffect(() => {
     loadJobs()
+    loadProfile()
     connectWebSocket()
+    return () => ws.disconnect()
   }, [])
 
   const loadJobs = async () => {
@@ -23,6 +37,16 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       setError(err instanceof Error ? err.message : 'Failed to load jobs')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadProfile = async () => {
+    try {
+      const profile = await profileApi.getProfile()
+      setContact(profile.contact)
+      setPreferences(profile.preferences)
+    } catch (err) {
+      console.error('Failed to load profile:', err)
     }
   }
 
@@ -40,25 +64,108 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             return [...prev, job]
           })
         })
+        ws.on('job:deleted', ({ id }: { id: string }) => {
+          setJobs(prev => prev.filter(j => j.id !== id))
+        })
       } catch (err) {
         console.error('WebSocket connection failed:', err)
       }
     }
   }
 
-  if (loading) return <div className="p-8 text-center text-lg">Loading jobs...</div>
+  if (loading) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center" role="status" aria-live="polite">
+        <FluidBackground />
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+          className="h-10 w-10 rounded-full border-2 border-indigo-300 border-t-indigo-600"
+        />
+        <span className="sr-only">Loading jobs…</span>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow p-6 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">JobHunter</h1>
-        <button onClick={onLogout} className="text-red-600 hover:text-red-700 font-semibold transition">
-          Sign Out
-        </button>
+    <div className="relative min-h-screen">
+      <FluidBackground />
+
+      <header className="sticky top-0 z-20 glass px-6 py-4 shadow-sm md:px-10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Open menu"
+              className="flex h-9 w-9 flex-col items-center justify-center gap-1.5 rounded-lg transition hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            >
+              <span className="h-0.5 w-5 rounded-full bg-slate-700 dark:bg-slate-200" />
+              <span className="h-0.5 w-5 rounded-full bg-slate-700 dark:bg-slate-200" />
+              <span className="h-0.5 w-5 rounded-full bg-slate-700 dark:bg-slate-200" />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 shadow shadow-indigo-500/30">
+                <span className="font-display text-sm font-extrabold text-white">J</span>
+              </div>
+              <h1 className="font-display text-xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 bg-clip-text text-transparent">
+                JobHunter
+              </h1>
+            </div>
+          </div>
+          <AvatarMenu
+            contact={contact}
+            onAvatarUploaded={(updated) => setContact(updated)}
+            onLogout={onLogout}
+          />
+        </div>
       </header>
-      <main className="p-8">
-        {error && <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
-        <KanbanBoard jobs={jobs} onJobsChange={setJobs} />
+
+      <NavDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onOpenAccountSettings={() => { setDrawerOpen(false); setEditTab('account') }}
+        onOpenJobPreferences={() => { setDrawerOpen(false); setEditTab('preferences') }}
+        isDark={isDark}
+        onToggleDark={toggleDark}
+      />
+
+      <AnimatePresence>
+        {editTab && contact && preferences && (
+          <EditProfileModal
+            initialTab={editTab}
+            contact={contact}
+            preferences={preferences}
+            onClose={() => setEditTab(null)}
+            onSaved={(updatedContact, updatedPreferences) => {
+              setContact(updatedContact)
+              setPreferences(updatedPreferences)
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <main className="mx-auto max-w-7xl px-6 py-8 md:px-10">
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              role="alert"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-4 flex items-center justify-between gap-4 overflow-hidden rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+            >
+              <span>{error}</span>
+              <button
+                onClick={loadJobs}
+                className="flex-shrink-0 rounded-lg bg-red-100 px-3 py-1 text-xs font-semibold text-red-800 transition hover:bg-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:bg-red-500/20 dark:text-red-200 dark:hover:bg-red-500/30"
+              >
+                Retry
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <StatsPanel jobs={jobs} />
+        <KanbanBoard jobs={jobs} onJobsChange={setJobs} firstName={contact?.first_name} />
       </main>
     </div>
   )

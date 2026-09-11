@@ -8,7 +8,7 @@ from constructs import Construct
 class AuthStack(cdk.Stack):
     """Manages authentication via Cognito User Pool."""
 
-    def __init__(self, scope: Construct, id: str, env_name: str, **kwargs):
+    def __init__(self, scope: Construct, id: str, env_name: str, cloudfront_domain: str, **kwargs):
         super().__init__(scope, id, **kwargs)
 
         self.env_name = env_name
@@ -30,10 +30,30 @@ class AuthStack(cdk.Stack):
             ),
         )
 
+        # Hosted UI needs to redirect back to the deployed SPA (and localhost for local dev).
+        callback_urls = [
+            f"https://{cloudfront_domain}",
+            f"https://{cloudfront_domain}/",
+            "http://localhost:5173",
+            "http://localhost:5173/",
+        ]
+
         # User pool client
         self.user_pool_client = self.user_pool.add_client(
             "WebClient",
             generate_secret=False,
+            auth_flows=cognito.AuthFlow(user_password=True, admin_user_password=True),
+            o_auth=cognito.OAuthSettings(
+                flows=cognito.OAuthFlows(authorization_code_grant=True),
+                scopes=[
+                    cognito.OAuthScope.OPENID,
+                    cognito.OAuthScope.EMAIL,
+                    cognito.OAuthScope.PROFILE,
+                ],
+                callback_urls=callback_urls,
+                logout_urls=callback_urls,
+            ),
+            supported_identity_providers=[cognito.UserPoolClientIdentityProvider.COGNITO],
         )
 
         # Hosted UI domain
@@ -53,4 +73,10 @@ class AuthStack(cdk.Stack):
             "UserPoolClientId",
             value=self.user_pool_client.user_pool_client_id,
             export_name=f"jobhunter-userpool-client-{env_name}",
+        )
+        cdk.CfnOutput(
+            self,
+            "CognitoDomain",
+            value=f"{self.domain.domain_name}.auth.{self.region}.amazoncognito.com",
+            export_name=f"jobhunter-cognito-domain-{env_name}",
         )

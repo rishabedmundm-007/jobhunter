@@ -39,6 +39,14 @@ class DataStack(cdk.Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             versioned=True,
             encryption=s3.BucketEncryption.S3_MANAGED,
+            cors=[
+                s3.CorsRule(
+                    allowed_methods=[s3.HttpMethods.PUT],
+                    allowed_origins=["*"],
+                    allowed_headers=["*"],
+                    max_age=3000,
+                )
+            ],
         )
 
         cdk.CfnOutput(

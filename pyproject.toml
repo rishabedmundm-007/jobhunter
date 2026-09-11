@@ -1,0 +1,17 @@
+[project]
+name = "jobhunter"
+version = "0.1.0"
+description = "Automated job search and application tracking"
+requires-python = ">=3.12"
+
+dependencies = [
+    "aws-cdk-lib>=2.110",
+    "constructs>=10.0",
+]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

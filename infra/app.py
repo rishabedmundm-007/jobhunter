@@ -17,8 +17,16 @@ region = app.node.try_get_context("region")
 
 env = cdk.Environment(account=account, region=region)
 
-# Stacks in dependency order
-auth = AuthStack(app, f"jobhunter-auth-{env_name}", env=env, env_name=env_name)
+# Stacks in dependency order. WebStack goes first so its CloudFront domain
+# can be wired into the Cognito hosted-UI callback URLs.
+web = WebStack(app, f"jobhunter-web-{env_name}", env=env, env_name=env_name)
+auth = AuthStack(
+    app,
+    f"jobhunter-auth-{env_name}",
+    env=env,
+    env_name=env_name,
+    cloudfront_domain=web.distribution.domain_name,
+)
 data = DataStack(app, f"jobhunter-data-{env_name}", env=env, env_name=env_name)
 api = ApiStack(
     app, f"jobhunter-api-{env_name}", env=env, env_name=env_name, auth_stack=auth, data_stack=data
@@ -26,7 +34,6 @@ api = ApiStack(
 pipeline = PipelineStack(
     app, f"jobhunter-pipeline-{env_name}", env=env, env_name=env_name, data_stack=data
 )
-web = WebStack(app, f"jobhunter-web-{env_name}", env=env, env_name=env_name, api_stack=api)
 obs = ObservabilityStack(app, f"jobhunter-obs-{env_name}", env=env, env_name=env_name)
 
 app.synth()

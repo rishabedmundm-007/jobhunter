@@ -1,17 +1,20 @@
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 
 export default function CreateJobModal({ onClose, onCreate }: { onClose: () => void; onCreate: (input: any) => void }) {
   const [title, setTitle] = useState('')
   const [company, setCompany] = useState('')
   const [link, setLink] = useState('')
   const [loading, setLoading] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !company.trim()) {
-      alert('Title and company are required')
+      setFormError('Title and company are required')
       return
     }
+    setFormError(null)
     setLoading(true)
     try {
       await onCreate({ title: title.trim(), company: company.trim(), link: link.trim() || undefined })
@@ -21,28 +24,84 @@ export default function CreateJobModal({ onClose, onCreate }: { onClose: () => v
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-8 rounded-lg shadow-2xl w-96">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Add New Job</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4"
+    >
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.92, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className="glass-solid w-full max-w-md rounded-2xl p-8 shadow-2xl"
+      >
+        <h2 className="font-display mb-6 text-2xl font-extrabold text-ink dark:text-white">Add New Job</h2>
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {formError && (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+              {formError}
+            </div>
+          )}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Job Title *</label>
-            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required disabled={loading} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Senior Engineer" />
+            <label className="mb-1.5 block text-sm font-semibold text-slate-600 dark:text-slate-400">Job Title *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              disabled={loading}
+              className="glass-input w-full rounded-xl px-4 py-2.5 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="e.g., Senior Engineer"
+            />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Company *</label>
-            <input type="text" value={company} onChange={(e) => setCompany(e.target.value)} required disabled={loading} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Google" />
+            <label className="mb-1.5 block text-sm font-semibold text-slate-600 dark:text-slate-400">Company *</label>
+            <input
+              type="text"
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              required
+              disabled={loading}
+              className="glass-input w-full rounded-xl px-4 py-2.5 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="e.g., Google"
+            />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Job Link</label>
-            <input type="url" value={link} onChange={(e) => setLink(e.target.value)} disabled={loading} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://..." />
+            <label className="mb-1.5 block text-sm font-semibold text-slate-600 dark:text-slate-400">Job Link</label>
+            <input
+              type="url"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              disabled={loading}
+              className="glass-input w-full rounded-xl px-4 py-2.5 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="https://..."
+            />
           </div>
-          <div className="flex gap-3 justify-end pt-4">
-            <button type="button" onClick={onClose} disabled={loading} className="px-6 py-2 bg-gray-300 text-gray-900 rounded-lg hover:bg-gray-400 font-semibold transition disabled:opacity-50">Cancel</button>
-            <button type="submit" disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition disabled:opacity-50">{loading ? 'Creating...' : 'Create'}</button>
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="rounded-xl bg-slate-100 dark:bg-slate-800 px-6 py-2.5 font-semibold text-slate-700 dark:text-slate-300 transition hover:bg-slate-200 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <motion.button
+              type="submit"
+              disabled={loading}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 px-6 py-2.5 font-semibold text-white shadow-lg shadow-indigo-500/25 transition disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create'}
+            </motion.button>
           </div>
         </form>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

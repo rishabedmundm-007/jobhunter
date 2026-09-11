@@ -2,8 +2,10 @@ import aws_cdk as cdk
 from aws_cdk import (
     aws_s3 as s3,
     aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
 )
 from constructs import Construct
+
 
 class WebStack(cdk.Stack):
     def __init__(self, scope: Construct, id: str, env_name: str, **kwargs):
@@ -19,18 +21,11 @@ class WebStack(cdk.Stack):
             encryption=s3.BucketEncryption.S3_MANAGED,
         )
 
-        oai = cloudfront.OriginAccessIdentity(
-            self,
-            "WebOAI",
-            comment=f"OAI for jobhunter-web-{env_name}",
-        )
-        self.web_bucket.grant_read(oai)
-
         self.distribution = cloudfront.Distribution(
             self,
             "WebDistribution",
             default_behavior=cloudfront.BehaviorOptions(
-                origin=cloudfront.S3Origin(self.web_bucket, origin_access_identity=oai),
+                origin=origins.S3BucketOrigin.with_origin_access_control(self.web_bucket),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 compress=True,
             ),
@@ -50,4 +45,11 @@ class WebStack(cdk.Stack):
             "CloudFrontUrl",
             value=f"https://{self.distribution.domain_name}",
             export_name=f"jobhunter-web-url-{env_name}",
+        )
+
+        cdk.CfnOutput(
+            self,
+            "DistributionId",
+            value=self.distribution.distribution_id,
+            export_name=f"jobhunter-web-distid-{env_name}",
         )

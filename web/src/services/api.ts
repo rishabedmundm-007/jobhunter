@@ -1,4 +1,4 @@
-import { Job, JobCreateInput, JobUpdateInput } from '../types';
+import { ContactInfo, Job, JobCreateInput, JobUpdateInput, Preferences, Profile, Resume } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -47,5 +47,82 @@ export const jobsApi = {
       headers: headers(),
     });
     if (!res.ok) throw new Error('Failed to delete job');
+  },
+};
+
+export const profileApi = {
+  async getProfile(): Promise<Profile> {
+    const res = await fetch(`${API_URL}/profile`, { headers: headers() });
+    if (!res.ok) throw new Error('Failed to load profile');
+    return res.json();
+  },
+
+  async uploadResume(file: File): Promise<{ resume: Resume }> {
+    const urlRes = await fetch(`${API_URL}/profile/resume-upload-url`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ filename: file.name, content_type: file.type, size: file.size }),
+    });
+    if (!urlRes.ok) {
+      const err = await urlRes.json();
+      throw new Error(err.error || 'Failed to prepare upload');
+    }
+    const { upload_url, key } = await urlRes.json();
+
+    const putRes = await fetch(upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    });
+    if (!putRes.ok) throw new Error('Failed to upload file');
+
+    const confirmRes = await fetch(`${API_URL}/profile/resume`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ key, filename: file.name, size: file.size }),
+    });
+    if (!confirmRes.ok) throw new Error('Failed to confirm upload');
+    return confirmRes.json();
+  },
+
+  async savePreferences(input: ContactInfo & Preferences): Promise<{ contact: ContactInfo; preferences: Preferences }> {
+    const res = await fetch(`${API_URL}/profile/preferences`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to save preferences');
+    }
+    return res.json();
+  },
+
+  async uploadAvatar(file: File): Promise<{ contact: ContactInfo }> {
+    const urlRes = await fetch(`${API_URL}/profile/avatar-upload-url`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ filename: file.name, content_type: file.type, size: file.size }),
+    });
+    if (!urlRes.ok) {
+      const err = await urlRes.json();
+      throw new Error(err.error || 'Failed to prepare upload');
+    }
+    const { upload_url, key } = await urlRes.json();
+
+    const putRes = await fetch(upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    });
+    if (!putRes.ok) throw new Error('Failed to upload photo');
+
+    const confirmRes = await fetch(`${API_URL}/profile/avatar`, {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify({ key }),
+    });
+    if (!confirmRes.ok) throw new Error('Failed to confirm photo upload');
+    return confirmRes.json();
   },
 };

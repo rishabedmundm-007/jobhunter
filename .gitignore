@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+
+node_modules/
+dist/
+web/.env*.local
+web/.env.production
+
+infra/cdk.out/
+infra/cdk-outputs.json
+.ruff_cache/

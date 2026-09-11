@@ -1,5 +1,5 @@
-const COGNITO_DOMAIN = `jobhunter-dev.auth.us-east-1.amazoncognito.com`;
-const CLIENT_ID = localStorage.getItem('COGNITO_CLIENT_ID') || "YOUR_CLIENT_ID";
+const COGNITO_DOMAIN = import.meta.env.VITE_COGNITO_DOMAIN;
+const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID;
 const REDIRECT_URI = typeof window !== 'undefined' ? window.location.origin : '';
 
 export const getAuthUrl = () => {
