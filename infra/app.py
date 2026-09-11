@@ -33,7 +33,12 @@ api = ApiStack(
     app, f"jobhunter-api-{env_name}", env=env, env_name=env_name, auth_stack=auth, data_stack=data
 )
 pipeline = PipelineStack(
-    app, f"jobhunter-pipeline-{env_name}", env=env, env_name=env_name, data_stack=data
+    app,
+    f"jobhunter-pipeline-{env_name}",
+    env=env,
+    env_name=env_name,
+    data_stack=data,
+    api_stack=api,
 )
 obs = ObservabilityStack(app, f"jobhunter-obs-{env_name}", env=env, env_name=env_name)
 

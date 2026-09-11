@@ -1,7 +1,7 @@
 # ADR-0003: Job ingestion sources policy
 
 **Date:** 2026-09-10
-**Status:** Accepted
+**Status:** Superseded by explicit override (see below)
 **Deciders:** Rishab
 
 ## Context
@@ -41,3 +41,24 @@ Neutral:
 ## Related decisions
 
 None yet.
+
+## Override (2026-09-10, same day)
+
+When the ingestion/matching/tailoring module was implemented, the user was asked
+directly whether to follow this ADR or override it, was explicitly warned of the
+ToS-violation, account-suspension, and technical-fragility risks, and chose to
+override it **twice** after that warning: LinkedIn and Indeed are ingested via
+direct browser automation (Playwright, the user's own login) alongside the
+originally-approved sources, which remain in place unchanged.
+
+Guardrails kept from the original decision, even under the override:
+- No CAPTCHA-solving, proxy rotation, or fingerprint spoofing — a login
+  challenge or unrecognized page is a hard failure for that run
+  (`INTEGRATION#<provider>.status = "challenge_required"`), never fought through
+  or retried aggressively.
+- Read-only: this adapter discovers and describes postings; it never submits an
+  application or fills a form (see ADR-0004 — that stays human-gated regardless
+  of source).
+
+See `services/ingest/browser_adapter/` for the implementation and its inline
+disclosure of this override.

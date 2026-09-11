@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Job } from '../types'
+import { Job, PipelineRun } from '../types'
 import { STATES, STATE_META } from '../utils/stateMeta'
 
 function StatTile({ label, value, delta }: { label: string; value: string; delta?: string }) {
@@ -14,7 +14,17 @@ function StatTile({ label, value, delta }: { label: string; value: string; delta
   )
 }
 
-export default function StatsPanel({ jobs }: { jobs: Job[] }) {
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const mins = Math.round(diffMs / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.round(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.round(hours / 24)}d ago`
+}
+
+export default function StatsPanel({ jobs, latestRun }: { jobs: Job[]; latestRun?: PipelineRun | null }) {
   const total = jobs.length
   const applied = jobs.filter(j => j.state === 'APPLIED').length
   const inProgress = jobs.filter(j => j.state === 'IN_PROGRESS').length
@@ -22,6 +32,14 @@ export default function StatsPanel({ jobs }: { jobs: Job[] }) {
 
   const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
   const thisWeek = jobs.filter(j => new Date(j.created_at).getTime() >= oneWeekAgo).length
+
+  const scored = jobs.filter(j => typeof j.score === 'number')
+  const avgScore = scored.length > 0
+    ? Math.round((scored.reduce((sum, j) => sum + (j.score || 0), 0) / scored.length) * 100)
+    : null
+
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+  const tailoredToday = jobs.filter(j => j.tailored_at && new Date(j.tailored_at).getTime() >= todayStart.getTime()).length
 
   const counts = STATES.map(state => ({
     state,
@@ -38,6 +56,12 @@ export default function StatsPanel({ jobs }: { jobs: Job[] }) {
         <StatTile label="Applied" value={String(applied)} />
         <StatTile label="In progress" value={String(inProgress)} />
         <StatTile label="Discovered → applied" value={`${conversion}%`} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <StatTile label="Avg match score" value={avgScore !== null ? `${avgScore}%` : '—'} />
+        <StatTile label="Tailored today" value={String(tailoredToday)} />
+        <StatTile label="Last pipeline run" value={latestRun ? formatRelativeTime(latestRun.run_at) : '—'} />
       </div>
 
       <div className="glass mt-3 rounded-2xl p-4">

@@ -8,6 +8,8 @@ from aws_cdk import (
 )
 from constructs import Construct
 
+from ._lambda_layer import create_dependencies_layer
+
 
 class ApiStack(cdk.Stack):
     def __init__(self, scope: Construct, id: str, env_name: str, auth_stack, data_stack, **kwargs):
@@ -164,16 +166,36 @@ class ApiStack(cdk.Stack):
             )
         )
         self.data_stack.bucket.grant_read_write(lambda_role)
+        # Resume structuring (confirm_resume_handler) and embedding recompute
+        # (confirm_resume_handler, save_preferences_handler) call Bedrock.
+        lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["bedrock:InvokeModel"],
+                # Claude Haiku 4.5 is invoked via a cross-region inference profile,
+                # which can route to underlying foundation models in other regions
+                # within the profile — both resource types need to be covered.
+                resources=[
+                    "arn:aws:bedrock:*::foundation-model/*",
+                    f"arn:aws:bedrock:*:{self.account}:inference-profile/*",
+                ],
+            )
+        )
 
         job_fn_env = {
             "TABLE_NAME": self.data_stack.main_table.table_name,
             "WS_ENDPOINT": ws_endpoint,
+            "BUCKET_NAME": self.data_stack.bucket.bucket_name,
         }
 
         profile_fn_env = {
             "TABLE_NAME": self.data_stack.main_table.table_name,
             "BUCKET_NAME": self.data_stack.bucket.bucket_name,
         }
+
+        # profile_handlers.py imports pypdf/python-docx at module load time (used
+        # by confirm_resume_handler), so every Lambda that loads that module —
+        # not just the one that calls it — needs this layer or cold start fails.
+        deps_layer = create_dependencies_layer(self, "ApiDependenciesLayer")
 
         create_job_fn = lambda_.Function(
             self,
@@ -266,6 +288,7 @@ class ApiStack(cdk.Stack):
             environment=profile_fn_env,
             timeout=cdk.Duration.seconds(30),
             memory_size=512,
+            layers=[deps_layer],
         )
 
         create_resume_upload_url_fn = lambda_.Function(
@@ -278,6 +301,7 @@ class ApiStack(cdk.Stack):
             environment=profile_fn_env,
             timeout=cdk.Duration.seconds(30),
             memory_size=512,
+            layers=[deps_layer],
         )
 
         confirm_resume_fn = lambda_.Function(
@@ -290,6 +314,7 @@ class ApiStack(cdk.Stack):
             environment=profile_fn_env,
             timeout=cdk.Duration.seconds(30),
             memory_size=512,
+            layers=[deps_layer],
         )
 
         self.http_api.add_routes(
@@ -327,6 +352,7 @@ class ApiStack(cdk.Stack):
             environment=profile_fn_env,
             timeout=cdk.Duration.seconds(30),
             memory_size=512,
+            layers=[deps_layer],
         )
 
         self.http_api.add_routes(
@@ -348,6 +374,7 @@ class ApiStack(cdk.Stack):
             environment=profile_fn_env,
             timeout=cdk.Duration.seconds(30),
             memory_size=512,
+            layers=[deps_layer],
         )
 
         confirm_avatar_fn = lambda_.Function(
@@ -360,6 +387,7 @@ class ApiStack(cdk.Stack):
             environment=profile_fn_env,
             timeout=cdk.Duration.seconds(30),
             memory_size=512,
+            layers=[deps_layer],
         )
 
         self.http_api.add_routes(
@@ -376,6 +404,67 @@ class ApiStack(cdk.Stack):
             methods=[apigw.HttpMethod.PUT],
             integration=integrations.HttpLambdaIntegration(
                 "ConfirmAvatarIntegration", confirm_avatar_fn
+            ),
+            authorizer=jwt_authorizer,
+        )
+
+        # ---------------------------------------------------------------
+        # Connected accounts — LinkedIn/Indeed login the browser-adapter
+        # ingestion Lambda (infra/stacks/pipeline.py) uses. Credentials go
+        # straight to SSM, never through DynamoDB.
+        # ---------------------------------------------------------------
+
+        integration_fn_env = {
+            "TABLE_NAME": self.data_stack.main_table.table_name,
+            "ENV_NAME": env_name,
+        }
+        lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["ssm:PutParameter"],
+                resources=[
+                    f"arn:aws:ssm:{self.region}:{self.account}:parameter/jobhunter/{env_name}/users/*"
+                ],
+            )
+        )
+
+        save_integration_fn = lambda_.Function(
+            self,
+            "SaveIntegrationCredentialsFunction",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="api.integration_handlers.save_integration_credentials_handler",
+            code=services_code,
+            role=lambda_role,
+            environment=integration_fn_env,
+            timeout=cdk.Duration.seconds(10),
+            memory_size=256,
+        )
+
+        get_integrations_fn = lambda_.Function(
+            self,
+            "GetIntegrationsFunction",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="api.integration_handlers.get_integrations_handler",
+            code=services_code,
+            role=lambda_role,
+            environment=integration_fn_env,
+            timeout=cdk.Duration.seconds(10),
+            memory_size=256,
+        )
+
+        self.http_api.add_routes(
+            path="/integrations",
+            methods=[apigw.HttpMethod.GET],
+            integration=integrations.HttpLambdaIntegration(
+                "GetIntegrationsIntegration", get_integrations_fn
+            ),
+            authorizer=jwt_authorizer,
+        )
+
+        self.http_api.add_routes(
+            path="/integrations/{provider}",
+            methods=[apigw.HttpMethod.PUT],
+            integration=integrations.HttpLambdaIntegration(
+                "SaveIntegrationIntegration", save_integration_fn
             ),
             authorizer=jwt_authorizer,
         )

@@ -8,6 +8,8 @@ export type JobState =
   | "IN_PROGRESS"
   | "DECISION";
 
+export type JobSource = "adzuna" | "usajobs" | "remotive" | "linkedin" | "indeed" | "manual";
+
 export interface Job {
   id: string;
   title: string;
@@ -18,6 +20,14 @@ export interface Job {
   created_at: string;
   updated_at: string;
   user_sub: string;
+  description?: string;
+  location?: string;
+  source?: JobSource;
+  score?: number;
+  reasons?: string[];
+  tailored_resume_key?: string;
+  tailored_at?: string;
+  resume_url?: string;
 }
 
 export interface JobCreateInput {
@@ -58,8 +68,26 @@ export interface ContactInfo {
   avatar_url?: string | null;
 }
 
+export interface PipelineRun {
+  sources_run: string[];
+  ingested_count: number;
+  shortlisted_count: number;
+  filtered_out_count: number;
+  tailored_count: number;
+  errors: string[];
+  run_at: string;
+}
+
 export interface Profile {
   resume: Resume | null;
   contact: ContactInfo | null;
   preferences: Preferences | null;
+  latest_run?: PipelineRun | null;
+}
+
+export type IntegrationProvider = "linkedin" | "indeed";
+
+export interface IntegrationStatus {
+  connected: boolean;
+  status: string | null;
 }

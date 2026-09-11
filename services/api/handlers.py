@@ -1,12 +1,29 @@
 import json
+import os
 import uuid
 from datetime import datetime
 from typing import Dict, Any
+
+import boto3
 
 from .auth import get_user_from_token
 from shared.ddb import create_job, get_jobs, update_job, delete_job
 from shared.broadcast import broadcast_to_user
 from shared.http import response
+
+s3 = boto3.client("s3")
+BUCKET_NAME = os.environ.get("BUCKET_NAME", "")
+RESUME_URL_TTL_SECONDS = 3600
+
+
+def _with_resume_url(item: Dict) -> Dict:
+    if item.get("tailored_resume_key"):
+        item["resume_url"] = s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": BUCKET_NAME, "Key": item["tailored_resume_key"]},
+            ExpiresIn=RESUME_URL_TTL_SECONDS,
+        )
+    return item
 
 
 def create_job_handler(event: Dict[str, Any], context: Any) -> Dict:
@@ -30,7 +47,7 @@ def create_job_handler(event: Dict[str, Any], context: Any) -> Dict:
         item = create_job(user_sub, job_id, job_data)
         item["id"] = job_id
         broadcast_to_user(user_sub, {"type": "job:updated", "payload": item})
-        return response(201, item)
+        return response(201, _with_resume_url(item))
     except KeyError as e:
         return response(400, {"error": f"Missing required field: {e}"})
     except Exception as e:
@@ -46,6 +63,7 @@ def get_jobs_handler(event: Dict[str, Any], context: Any) -> Dict:
         jobs = get_jobs(user_sub, state, limit)
         for job in jobs:
             job["id"] = job["SK"].split("#")[1]
+            _with_resume_url(job)
         return response(200, jobs)
     except Exception as e:
         return response(400, {"error": str(e)})
@@ -66,7 +84,7 @@ def update_job_handler(event: Dict[str, Any], context: Any) -> Dict:
         item = update_job(user_sub, job_id, updates)
         item["id"] = job_id
         broadcast_to_user(user_sub, {"type": "job:updated", "payload": item})
-        return response(200, item)
+        return response(200, _with_resume_url(item))
     except Exception as e:
         return response(400, {"error": str(e)})
 

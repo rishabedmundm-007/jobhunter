@@ -8,7 +8,8 @@
       "Bash(docker info *)",
       "Bash(uv run python -c ' *)",
       "Bash(echo \"exit: $?\")",
-      "Bash(chmod +x /Users/rishabedmundmeajuri/jobhunter/scripts/deploy_web.sh)"
+      "Bash(chmod +x /Users/rishabedmundmeajuri/jobhunter/scripts/deploy_web.sh)",
+      "Bash(npx tsc *)"
     ]
   }
 }

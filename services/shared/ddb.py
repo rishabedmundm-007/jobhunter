@@ -1,5 +1,7 @@
+import hashlib
 import boto3
 import os
+from botocore.exceptions import ClientError
 from typing import Any, Dict, List, Optional
 
 ddb = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
@@ -11,6 +13,32 @@ def create_job(user_sub: str, job_id: str, job_data: Dict[str, Any]) -> Dict:
     item = {"PK": f"USER#{user_sub}", "SK": f"JOB#{job_id}", **job_data}
     table.put_item(Item=item)
     return item
+
+
+def job_id_from_source(source: str, external_id: str) -> str:
+    """Deterministic job identity so re-ingesting the same posting is a no-op."""
+    return hashlib.sha256(f"{source}:{external_id}".encode()).hexdigest()[:32]
+
+
+def upsert_discovered_job(user_sub: str, job_id: str, job_data: Dict[str, Any]) -> bool:
+    """Insert a newly-discovered job iff it isn't already known.
+
+    Returns True if inserted, False if it already existed (a no-op — this preserves
+    any state/notes the user already set on a job we've seen before).
+    """
+    item = {"PK": f"USER#{user_sub}", "SK": f"JOB#{job_id}", **job_data}
+    try:
+        table.put_item(Item=item, ConditionExpression="attribute_not_exists(PK)")
+        return True
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            return False
+        raise
+
+
+def get_job(user_sub: str, job_id: str) -> Optional[Dict]:
+    response = table.get_item(Key={"PK": f"USER#{user_sub}", "SK": f"JOB#{job_id}"})
+    return response.get("Item")
 
 
 def get_jobs(user_sub: str, state: Optional[str] = None, limit: int = 50) -> List[Dict]:
@@ -81,3 +109,62 @@ def get_connections(user_sub: str) -> List[str]:
 
 def delete_connection(user_sub: str, connection_id: str) -> None:
     table.delete_item(Key={"PK": f"USER#{user_sub}", "SK": f"CONNECTION#{connection_id}"})
+
+
+def get_shortlisted_jobs_missing_resume(user_sub: str) -> List[Dict]:
+    """Backlog-aware tailoring input: every SHORTLISTED job with no tailored resume yet,
+    not just ones discovered this run."""
+    jobs = get_jobs(user_sub, state="SHORTLISTED", limit=1000)
+    return [j for j in jobs if not j.get("tailored_resume_key")]
+
+
+def put_resume_version(user_sub: str, job_id: str, resume_data: Dict[str, Any]) -> Dict:
+    item = {"PK": f"USER#{user_sub}", "SK": f"RESUME#{job_id}", **resume_data}
+    table.put_item(Item=item)
+    return item
+
+
+def get_integration(user_sub: str, provider: str) -> Optional[Dict]:
+    response = table.get_item(Key={"PK": f"USER#{user_sub}", "SK": f"INTEGRATION#{provider}"})
+    return response.get("Item")
+
+
+def put_integration(user_sub: str, provider: str, data: Dict[str, Any]) -> Dict:
+    item = {"PK": f"USER#{user_sub}", "SK": f"INTEGRATION#{provider}", **data}
+    table.put_item(Item=item)
+    return item
+
+
+def update_integration(user_sub: str, provider: str, updates: Dict[str, Any]) -> Dict:
+    key = {"PK": f"USER#{user_sub}", "SK": f"INTEGRATION#{provider}"}
+    update_expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates.keys())
+    response = table.update_item(
+        Key=key,
+        UpdateExpression=update_expr,
+        ExpressionAttributeNames={f"#{k}": k for k in updates.keys()},
+        ExpressionAttributeValues={f":{k}": v for k, v in updates.items()},
+        ReturnValues="ALL_NEW",
+    )
+    return response["Attributes"]
+
+
+def put_run(user_sub: str, run_id: str, run_data: Dict[str, Any]) -> Dict:
+    item = {"PK": f"USER#{user_sub}", "SK": f"RUN#{run_id}", **run_data}
+    table.put_item(Item=item)
+    return item
+
+
+def list_active_profiles() -> List[Dict]:
+    """Users who've completed onboarding (resume + preferences set) — the dispatcher's
+    candidate list. A plain filtered Scan is fine at this user scale."""
+    scan_kwargs = {
+        "FilterExpression": "SK = :sk AND attribute_exists(resume_key) AND attribute_exists(job_roles)",
+        "ExpressionAttributeValues": {":sk": "PROFILE"},
+    }
+    items: List[Dict] = []
+    response = table.scan(**scan_kwargs)
+    items.extend(response.get("Items", []))
+    while "LastEvaluatedKey" in response:
+        response = table.scan(**scan_kwargs, ExclusiveStartKey=response["LastEvaluatedKey"])
+        items.extend(response.get("Items", []))
+    return items

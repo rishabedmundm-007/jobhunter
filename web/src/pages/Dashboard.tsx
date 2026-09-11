@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { jobsApi, profileApi } from '../services/api'
 import { ws } from '../services/websocket'
-import { ContactInfo, Job, Preferences } from '../types'
+import { ContactInfo, Job, PipelineRun, Preferences } from '../types'
 import { useDarkMode } from '../hooks/useDarkMode'
 import KanbanBoard from '../components/KanbanBoard'
 import StatsPanel from '../components/StatsPanel'
@@ -10,6 +10,7 @@ import FluidBackground from '../components/FluidBackground'
 import NavDrawer from '../components/NavDrawer'
 import AvatarMenu from '../components/AvatarMenu'
 import EditProfileModal from '../components/EditProfileModal'
+import ConnectedAccountsModal from '../components/ConnectedAccountsModal'
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -17,8 +18,10 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [error, setError] = useState<string | null>(null)
   const [contact, setContact] = useState<ContactInfo | null>(null)
   const [preferences, setPreferences] = useState<Preferences | null>(null)
+  const [latestRun, setLatestRun] = useState<PipelineRun | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editTab, setEditTab] = useState<'account' | 'preferences' | null>(null)
+  const [connectedAccountsOpen, setConnectedAccountsOpen] = useState(false)
   const [isDark, toggleDark] = useDarkMode()
 
   useEffect(() => {
@@ -45,6 +48,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       const profile = await profileApi.getProfile()
       setContact(profile.contact)
       setPreferences(profile.preferences)
+      setLatestRun(profile.latest_run ?? null)
     } catch (err) {
       console.error('Failed to load profile:', err)
     }
@@ -66,6 +70,12 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         })
         ws.on('job:deleted', ({ id }: { id: string }) => {
           setJobs(prev => prev.filter(j => j.id !== id))
+        })
+        // The pipeline can touch a dozen jobs in one run — one batched event plus
+        // a single refetch beats a burst of individual job:updated messages.
+        ws.on('pipeline:completed', (run: PipelineRun) => {
+          setLatestRun(run)
+          loadJobs()
         })
       } catch (err) {
         console.error('WebSocket connection failed:', err)
@@ -125,9 +135,16 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         onClose={() => setDrawerOpen(false)}
         onOpenAccountSettings={() => { setDrawerOpen(false); setEditTab('account') }}
         onOpenJobPreferences={() => { setDrawerOpen(false); setEditTab('preferences') }}
+        onOpenConnectedAccounts={() => { setDrawerOpen(false); setConnectedAccountsOpen(true) }}
         isDark={isDark}
         onToggleDark={toggleDark}
       />
+
+      <AnimatePresence>
+        {connectedAccountsOpen && (
+          <ConnectedAccountsModal onClose={() => setConnectedAccountsOpen(false)} />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {editTab && contact && preferences && (
@@ -164,7 +181,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
             </motion.div>
           )}
         </AnimatePresence>
-        <StatsPanel jobs={jobs} />
+        <StatsPanel jobs={jobs} latestRun={latestRun} />
         <KanbanBoard jobs={jobs} onJobsChange={setJobs} firstName={contact?.first_name} />
       </main>
     </div>
