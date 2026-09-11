@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'theme'
 
+// Always starts in light mode. If the user switches to dark, that choice
+// is kept only for the current tab session (sessionStorage) — a fresh
+// visit always begins in light mode again.
 function getInitialTheme(): boolean {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  if (stored === 'dark') return true
-  if (stored === 'light') return false
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+  return sessionStorage.getItem(STORAGE_KEY) === 'dark'
 }
 
 export function useDarkMode(): [boolean, () => void] {
@@ -19,7 +19,7 @@ export function useDarkMode(): [boolean, () => void] {
   const toggle = useCallback(() => {
     setIsDark(prev => {
       const next = !prev
-      localStorage.setItem(STORAGE_KEY, next ? 'dark' : 'light')
+      sessionStorage.setItem(STORAGE_KEY, next ? 'dark' : 'light')
       return next
     })
   }, [])

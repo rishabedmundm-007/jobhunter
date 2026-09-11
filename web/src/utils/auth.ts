@@ -1,39 +1,75 @@
-const COGNITO_DOMAIN = import.meta.env.VITE_COGNITO_DOMAIN;
 const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID;
-const REDIRECT_URI = typeof window !== 'undefined' ? window.location.origin : '';
+const COGNITO_DOMAIN: string = import.meta.env.VITE_COGNITO_DOMAIN || '';
+// The hosted-UI domain embeds the region ("<prefix>.auth.<region>.amazoncognito.com"),
+// so it doubles as the source of truth for which regional IdP endpoint to call.
+const REGION = COGNITO_DOMAIN.split('.')[2] || 'us-east-1';
+const IDP_ENDPOINT = `https://cognito-idp.${REGION}.amazonaws.com/`;
 
-export const getAuthUrl = () => {
-  const params = new URLSearchParams({
-    client_id: CLIENT_ID,
-    response_type: 'code',
-    redirect_uri: REDIRECT_URI,
-    scope: 'openid email profile',
-  });
-  return `https://${COGNITO_DOMAIN}/oauth2/authorize?${params.toString()}`;
-};
+interface CognitoAuthResult {
+  AccessToken: string;
+  IdToken: string;
+  RefreshToken?: string;
+}
 
-export const exchangeCodeForTokens = async (code: string) => {
-  const params = new URLSearchParams({
-    grant_type: 'authorization_code',
-    client_id: CLIENT_ID,
-    code,
-    redirect_uri: REDIRECT_URI,
-  });
-
-  const response = await fetch(`https://${COGNITO_DOMAIN}/oauth2/token`, {
+async function cognitoRequest(target: string, body: object): Promise<any> {
+  const res = await fetch(IDP_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
+    headers: {
+      'Content-Type': 'application/x-amz-json-1.1',
+      'X-Amz-Target': `AWSCognitoIdentityProviderService.${target}`,
+    },
+    body: JSON.stringify(body),
   });
+  const data = await res.json();
+  if (!res.ok) {
+    const type = (data.__type || 'Error').split('#').pop();
+    const err = new Error(data.message || type);
+    err.name = type;
+    throw err;
+  }
+  return data;
+}
 
-  if (!response.ok) throw new Error('Token exchange failed');
-  return response.json();
+export const signIn = async (email: string, password: string): Promise<CognitoAuthResult> => {
+  const data = await cognitoRequest('InitiateAuth', {
+    AuthFlow: 'USER_PASSWORD_AUTH',
+    ClientId: CLIENT_ID,
+    AuthParameters: { USERNAME: email, PASSWORD: password },
+  });
+  if (!data.AuthenticationResult) {
+    throw new Error(`Unsupported sign-in step: ${data.ChallengeName || 'unknown'}`);
+  }
+  return data.AuthenticationResult;
 };
 
-export const saveTokens = (tokens: any) => {
-  localStorage.setItem('id_token', tokens.id_token);
-  localStorage.setItem('access_token', tokens.access_token);
-  localStorage.setItem('refresh_token', tokens.refresh_token || '');
+export const signUp = async (email: string, password: string): Promise<void> => {
+  await cognitoRequest('SignUp', {
+    ClientId: CLIENT_ID,
+    Username: email,
+    Password: password,
+    UserAttributes: [{ Name: 'email', Value: email }],
+  });
+};
+
+export const confirmSignUp = async (email: string, code: string): Promise<void> => {
+  await cognitoRequest('ConfirmSignUp', {
+    ClientId: CLIENT_ID,
+    Username: email,
+    ConfirmationCode: code,
+  });
+};
+
+export const resendConfirmationCode = async (email: string): Promise<void> => {
+  await cognitoRequest('ResendConfirmationCode', {
+    ClientId: CLIENT_ID,
+    Username: email,
+  });
+};
+
+export const saveTokens = (tokens: CognitoAuthResult) => {
+  localStorage.setItem('id_token', tokens.IdToken);
+  localStorage.setItem('access_token', tokens.AccessToken);
+  localStorage.setItem('refresh_token', tokens.RefreshToken || '');
 };
 
 export const getAccessToken = () => localStorage.getItem('access_token');
