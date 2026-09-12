@@ -1,16 +1,17 @@
 import { Job, JobState } from '../types'
 import { jobsApi } from '../services/api'
-import JobCard from './JobCard'
 import { useMemo, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import CreateJobModal from './CreateJobModal'
-import ConfirmDialog from './ConfirmDialog'
 import { STATES, STATE_META } from '../utils/stateMeta'
 import { useToast } from '../hooks/useToast'
 
+// Each bucket is a collapsed tile, not an inline job list — clicking one opens
+// its own dedicated page (JobListPage, mode="state") with the full stylized
+// list, including each job's tailored resume link right next to it.
 export default function KanbanBoard({ jobs, onJobsChange, firstName }: { jobs: Job[], onJobsChange: (jobs: Job[]) => void, firstName?: string }) {
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [pendingDelete, setPendingDelete] = useState<Job | null>(null)
   const [query, setQuery] = useState('')
   const [activeStates, setActiveStates] = useState<Set<JobState>>(new Set(STATES))
   const toast = useToast()
@@ -24,38 +25,13 @@ export default function KanbanBoard({ jobs, onJobsChange, firstName }: { jobs: J
     })
   }
 
-  const visibleJobs = useMemo(() => {
+  const filteredJobs = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return jobs.filter(j => {
-      if (!activeStates.has(j.state)) return false
-      if (!q) return true
-      return j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q)
-    })
-  }, [jobs, query, activeStates])
+    if (!q) return jobs
+    return jobs.filter(j => j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q))
+  }, [jobs, query])
 
   const filtersActive = query.trim() !== '' || activeStates.size !== STATES.length
-
-  const handleMoveJob = async (jobId: string, newState: JobState) => {
-    try {
-      const updated = await jobsApi.updateJob(jobId, { state: newState })
-      onJobsChange(jobs.map(j => j.id === jobId ? updated : j))
-      toast.success(`Moved "${updated.title}" to ${STATE_META[newState].label}`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to move job')
-    }
-  }
-
-  const handleDeleteJob = async (job: Job) => {
-    try {
-      await jobsApi.deleteJob(job.id)
-      onJobsChange(jobs.filter(j => j.id !== job.id))
-      toast.success(`Deleted "${job.title}"`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete job')
-    } finally {
-      setPendingDelete(null)
-    }
-  }
 
   const handleCreateJob = async (input: any) => {
     try {
@@ -67,6 +43,8 @@ export default function KanbanBoard({ jobs, onJobsChange, firstName }: { jobs: J
       toast.error(err instanceof Error ? err.message : 'Failed to create job')
     }
   }
+
+  const visibleStates = STATES.filter(state => activeStates.has(state))
 
   return (
     <div>
@@ -130,74 +108,47 @@ export default function KanbanBoard({ jobs, onJobsChange, firstName }: { jobs: J
       </div>
 
       {showCreateModal && <CreateJobModal onClose={() => setShowCreateModal(false)} onCreate={handleCreateJob} />}
-      <AnimatePresence>
-        {pendingDelete && (
-          <ConfirmDialog
-            title="Delete this job?"
-            description={`"${pendingDelete.title}" at ${pendingDelete.company} will be removed for good.`}
-            confirmLabel="Delete"
-            danger
-            onConfirm={() => handleDeleteJob(pendingDelete)}
-            onCancel={() => setPendingDelete(null)}
-          />
-        )}
-      </AnimatePresence>
 
-      {filtersActive && visibleJobs.length === 0 && (
-        <div className="glass rounded-2xl p-8 text-center text-sm text-slate-500 dark:text-slate-400">
-          No jobs match your search or filters.
+      {query.trim() !== '' && filteredJobs.length === 0 && (
+        <div className="glass mb-4 rounded-2xl p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+          No jobs match your search.
         </div>
       )}
 
       <motion.div
         role="list"
-        aria-label="Kanban board, grouped by status"
+        aria-label="Job buckets, grouped by status"
         initial="hidden"
         animate="show"
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
-        className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
-        {STATES.filter(state => activeStates.has(state)).map(state => {
+        {visibleStates.map(state => {
           const meta = STATE_META[state]
-          const stateJobs = visibleJobs.filter(j => j.state === state)
+          const count = filteredJobs.filter(j => j.state === state).length
           return (
-            <motion.section
+            <motion.div
               key={state}
               role="listitem"
-              aria-label={`${meta.label}, ${stateJobs.length} job${stateJobs.length === 1 ? '' : 's'}`}
               variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
               transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-              className="glass rounded-2xl p-4 shadow-sm"
             >
-              <div className="mb-4 flex items-center justify-between">
+              <Link
+                to={`/board/state/${state}`}
+                className={`glass group block rounded-2xl p-5 shadow-sm ring-1 ${meta.ring} transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400`}
+              >
                 <div className="flex items-center gap-2">
                   <span className={`h-2 w-2 rounded-full ${meta.dot}`} aria-hidden="true" />
                   <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">{meta.label}</h3>
                 </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${meta.chip}`}>
-                  {stateJobs.length}
-                </span>
-              </div>
-
-              <div className="flex max-h-[30rem] min-h-[4rem] flex-col gap-2.5 overflow-y-auto pr-0.5">
-                <AnimatePresence mode="popLayout">
-                  {stateJobs.map((job, index) => (
-                    <JobCard
-                      key={job.id}
-                      job={job}
-                      index={index}
-                      onMove={(newState) => handleMoveJob(job.id, newState)}
-                      onDelete={() => setPendingDelete(job)}
-                    />
-                  ))}
-                </AnimatePresence>
-                {stateJobs.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
-                    Nothing here yet
-                  </div>
-                )}
-              </div>
-            </motion.section>
+                <div className="mt-3 font-display text-3xl font-extrabold text-ink dark:text-white">
+                  {count}
+                </div>
+                <div className="mt-1 text-xs font-medium text-indigo-600 opacity-0 transition group-hover:opacity-100 dark:text-indigo-400">
+                  View jobs →
+                </div>
+              </Link>
+            </motion.div>
           )
         })}
       </motion.div>

@@ -5,7 +5,7 @@ import { Job, JobState } from '../types'
 import { jobsApi } from '../services/api'
 import { useToast } from '../hooks/useToast'
 import { STATE_META } from '../utils/stateMeta'
-import JobCard from '../components/JobCard'
+import JobListRow from '../components/JobListRow'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 export type JobListMode = 'state' | 'all' | 'tailored-today' | 'scored'
@@ -105,16 +105,18 @@ export default function JobListPage({ jobs, onJobsChange, mode }: {
           Nothing here yet.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((job, index) => (
-            <JobCard
-              key={job.id}
-              job={job}
-              index={index}
-              onMove={(newState) => handleMoveJob(job.id, newState)}
-              onDelete={() => setPendingDelete(job)}
-            />
-          ))}
+        <div className="flex flex-col gap-3">
+          <AnimatePresence mode="popLayout">
+            {items.map((job, index) => (
+              <JobListRow
+                key={job.id}
+                job={job}
+                index={index}
+                onMove={(newState) => handleMoveJob(job.id, newState)}
+                onDelete={() => setPendingDelete(job)}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </div>
