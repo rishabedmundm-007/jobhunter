@@ -126,3 +126,28 @@ export const profileApi = {
     return confirmRes.json();
   },
 };
+
+export class RateLimitError extends Error {
+  retryAfterSeconds: number;
+  constructor(message: string, retryAfterSeconds: number) {
+    super(message);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+export const pipelineApi = {
+  async runNow(): Promise<void> {
+    const res = await fetch(`${API_URL}/pipeline/run`, {
+      method: 'POST',
+      headers: headers(),
+    });
+    if (res.status === 429) {
+      const err = await res.json();
+      throw new RateLimitError(err.error || 'Rate limited', err.retry_after_seconds ?? 3600);
+    }
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to start search');
+    }
+  },
+};

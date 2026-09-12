@@ -408,6 +408,52 @@ class ApiStack(cdk.Stack):
             authorizer=jwt_authorizer,
         )
 
+        # ---------------------------------------------------------------
+        # On-demand pipeline trigger — lets a user watch a search run live
+        # instead of only ever seeing the scheduled 5x/day results after the
+        # fact. Rate-limited to once/hour in the handler itself (real Bedrock
+        # + JSearch cost per run). References the pipeline state machine by
+        # its predictable name/ARN (both stacks fix the same naming
+        # convention) rather than a cross-stack construct reference, since
+        # PipelineStack already depends on this stack (for the WebSocket
+        # endpoint) — a reverse reference back would be a circular stack
+        # dependency CloudFormation can't resolve.
+        # ---------------------------------------------------------------
+
+        pipeline_state_machine_arn = f"arn:aws:states:{self.region}:{self.account}:stateMachine:jobhunter-pipeline-{env_name}"
+        lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["states:StartExecution"],
+                resources=[pipeline_state_machine_arn],
+            )
+        )
+
+        trigger_pipeline_fn = lambda_.Function(
+            self,
+            "TriggerPipelineFunction",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="api.pipeline_handlers.trigger_pipeline_handler",
+            code=services_code,
+            role=lambda_role,
+            environment={
+                "TABLE_NAME": self.data_stack.main_table.table_name,
+                "ENV_NAME": env_name,
+                "WS_ENDPOINT": ws_endpoint,
+                "STATE_MACHINE_ARN": pipeline_state_machine_arn,
+            },
+            timeout=cdk.Duration.seconds(10),
+            memory_size=256,
+        )
+
+        self.http_api.add_routes(
+            path="/pipeline/run",
+            methods=[apigw.HttpMethod.POST],
+            integration=integrations.HttpLambdaIntegration(
+                "TriggerPipelineIntegration", trigger_pipeline_fn
+            ),
+            authorizer=jwt_authorizer,
+        )
+
         cdk.CfnOutput(
             self,
             "HttpApiEndpoint",

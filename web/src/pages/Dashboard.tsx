@@ -13,6 +13,8 @@ import AvatarMenu from '../components/AvatarMenu'
 import EditProfileModal from '../components/EditProfileModal'
 import JobListPage from './JobListPage'
 import RunDetailPage from './RunDetailPage'
+import JobDetailPage from './JobDetailPage'
+import PipelineRadar from '../components/PipelineRadar'
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -23,6 +25,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [latestRun, setLatestRun] = useState<PipelineRun | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editTab, setEditTab] = useState<'account' | 'preferences' | null>(null)
+  const [radarOpen, setRadarOpen] = useState(false)
   const [isDark, toggleDark] = useDarkMode()
 
   useEffect(() => {
@@ -123,13 +126,35 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               </h1>
             </Link>
           </div>
-          <AvatarMenu
-            contact={contact}
-            onAvatarUploaded={(updated) => setContact(updated)}
-            onLogout={onLogout}
-          />
+          <div className="flex items-center gap-3">
+            <motion.button
+              onClick={() => setRadarOpen(true)}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="hidden items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition sm:flex"
+            >
+              <span aria-hidden="true">🛰️</span>
+              Live Search
+            </motion.button>
+            <button
+              onClick={() => setRadarOpen(true)}
+              aria-label="Open live search"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-800 text-white shadow shadow-indigo-500/30 sm:hidden"
+            >
+              🛰️
+            </button>
+            <AvatarMenu
+              contact={contact}
+              onAvatarUploaded={(updated) => setContact(updated)}
+              onLogout={onLogout}
+            />
+          </div>
         </div>
       </header>
+
+      <AnimatePresence>
+        {radarOpen && <PipelineRadar onClose={() => setRadarOpen(false)} />}
+      </AnimatePresence>
 
       <NavDrawer
         open={drawerOpen}
@@ -190,6 +215,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           <Route path="/board/tailored-today" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="tailored-today" />} />
           <Route path="/board/scored" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="scored" />} />
           <Route path="/board/last-run" element={<RunDetailPage latestRun={latestRun} />} />
+          <Route path="/board/job/:id" element={<JobDetailPage jobs={jobs} onJobsChange={setJobs} />} />
         </Routes>
       </main>
     </div>

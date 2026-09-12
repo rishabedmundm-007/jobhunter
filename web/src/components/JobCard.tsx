@@ -1,7 +1,9 @@
 import { forwardRef } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Job, JobState } from '../types'
 import { STATES, STATE_META } from '../utils/stateMeta'
+import { STAGE_LABELS, OUTCOME_META } from '../utils/trackingOptions'
 
 interface JobCardProps {
   job: Job
@@ -38,6 +40,16 @@ const JobCard = forwardRef<HTMLDivElement, JobCardProps>(({ job, index, onMove, 
           )}
         </div>
         <div className="truncate text-xs text-slate-600 dark:text-slate-400">{job.company}</div>
+        {job.state === 'IN_PROGRESS' && job.stage && (
+          <span className="mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+            {STAGE_LABELS[job.stage]}
+          </span>
+        )}
+        {job.state === 'DECISION' && job.outcome && (
+          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${OUTCOME_META[job.outcome].chip}`}>
+            {OUTCOME_META[job.outcome].label}
+          </span>
+        )}
         {job.link && (
           <a
             href={job.link}
@@ -58,6 +70,14 @@ const JobCard = forwardRef<HTMLDivElement, JobCardProps>(({ job, index, onMove, 
             Tailored Resume ↗
           </a>
         )}
+        <div className="mt-1">
+          <Link
+            to={`/board/job/${job.id}`}
+            className="inline-block rounded text-xs font-medium text-indigo-700 hover:text-indigo-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+          >
+            Details →
+          </Link>
+        </div>
         <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
           {new Date(job.created_at).toLocaleDateString()}
         </div>

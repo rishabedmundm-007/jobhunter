@@ -82,6 +82,10 @@ class PipelineStack(cdk.Stack):
             "TABLE_NAME": data_stack.main_table.table_name,
             "BUCKET_NAME": data_stack.bucket.bucket_name,
             "ENV_NAME": env_name,
+            # So ingest/match/tailor can each broadcast live "pipeline:progress"
+            # updates as they work, not just the final "pipeline:completed"
+            # from finalize_fn — needed for the on-demand live-run view.
+            "WS_ENDPOINT": ws_endpoint,
         }
 
         api_adapters_fn = lambda_.Function(
@@ -130,7 +134,7 @@ class PipelineStack(cdk.Stack):
             handler="dispatch.finalize.lambda_handler",
             code=services_code,
             role=pipeline_role,
-            environment={**common_env, "WS_ENDPOINT": ws_endpoint},
+            environment=common_env,
             timeout=cdk.Duration.seconds(30),
             memory_size=256,
         )

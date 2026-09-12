@@ -10,6 +10,9 @@ export type JobState =
 
 export type JobSource = "adzuna" | "usajobs" | "remotive" | "remoteok" | "jsearch" | "manual";
 
+export type JobStage = "hr_screen" | "round_1" | "technical" | "final" | "offer_discussion";
+export type JobOutcome = "offer" | "rejected" | "withdrawn" | "ghosted";
+
 export interface Job {
   id: string;
   title: string;
@@ -28,6 +31,9 @@ export interface Job {
   tailored_resume_key?: string;
   tailored_at?: string;
   resume_url?: string;
+  stage?: JobStage;
+  outcome?: JobOutcome;
+  next_step_at?: string;
 }
 
 export interface JobCreateInput {
@@ -42,6 +48,9 @@ export interface JobUpdateInput {
   title?: string;
   company?: string;
   notes?: string;
+  stage?: JobStage;
+  outcome?: JobOutcome;
+  next_step_at?: string;
 }
 
 export interface Resume {
@@ -59,6 +68,7 @@ export interface Preferences {
   work_modes: string[];
   preferred_location: string;
   sponsorship_status: string;
+  match_threshold?: number;
 }
 
 export interface ContactInfo {
@@ -84,4 +94,18 @@ export interface Profile {
   contact: ContactInfo | null;
   preferences: Preferences | null;
   latest_run?: PipelineRun | null;
+}
+
+export type PipelineStage = "started" | "ingest" | "match" | "tailor";
+
+export interface PipelineProgress {
+  stage: PipelineStage;
+  status?: "checking" | "done" | "started" | "error";
+  source?: JobSource;
+  found?: number;
+  count?: number;
+  shortlisted?: number;
+  filtered_out?: number;
+  job_title?: string;
+  company?: string;
 }

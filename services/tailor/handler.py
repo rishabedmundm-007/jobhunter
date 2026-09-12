@@ -1,8 +1,10 @@
 """Generate one ATS-clean, job-specific resume for a shortlisted job.
 
-Invoked once per job ID from the pipeline's Map state — not broadcast per-job;
-the pipeline's final state sends a single batched "pipeline:completed" event
-instead of a WebSocket message per tailored resume (see infra/stacks/pipeline.py).
+Invoked once per job ID from the pipeline's Map state. Broadcasts a
+"pipeline:progress" update per job (for the on-demand live-run view) in
+addition to the pipeline's final batched "pipeline:completed" event from
+finalize.py — a start/done pair per job is small enough (top-N capped) not to
+flood the socket the way a per-job "job:updated" would.
 """
 
 import logging
@@ -15,6 +17,7 @@ import boto3
 from shared.bedrock import HAIKU_MODEL_ID, tailor_resume
 from shared.ddb import get_job, get_profile, put_resume_version, update_job
 from shared.docx_render import render_resume_docx
+from shared.broadcast import broadcast_to_user
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -34,6 +37,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
     if not job or not base_resume_json:
         return {"job_id": job_id, "status": "skipped", "reason": "missing job or base resume"}
 
+    broadcast_to_user(
+        user_sub,
+        {
+            "type": "pipeline:progress",
+            "payload": {
+                "stage": "tailor",
+                "status": "started",
+                "job_title": job.get("title"),
+                "company": job.get("company"),
+            },
+        },
+    )
+
     preferences = {
         "job_roles": profile.get("job_roles", []),
         "experience_level": profile.get("experience_level"),
@@ -45,6 +61,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
         tailored = tailor_resume(base_resume_json, job.get("description", ""), preferences)
     except Exception:
         logger.exception("Tailoring failed for job %s", job_id)
+        broadcast_to_user(
+            user_sub,
+            {
+                "type": "pipeline:progress",
+                "payload": {"stage": "tailor", "status": "error", "job_title": job.get("title")},
+            },
+        )
         return {"job_id": job_id, "status": "error"}
 
     ats_report = tailored.pop("ats_report", {})
@@ -80,6 +103,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
             "updated_at": now,
             "GSI1PK": f"USER#{user_sub}#STATE#RESUME_READY",
             "GSI1SK": now,
+        },
+    )
+    broadcast_to_user(
+        user_sub,
+        {
+            "type": "pipeline:progress",
+            "payload": {
+                "stage": "tailor",
+                "status": "done",
+                "job_title": job.get("title"),
+                "company": job.get("company"),
+            },
         },
     )
     return {"job_id": job_id, "status": "tailored"}

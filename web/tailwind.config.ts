@@ -26,6 +26,7 @@ export default {
         'blob-slow': 'blob 26s infinite cubic-bezier(0.45, 0, 0.55, 1)',
         'fade-up': 'fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both',
         shimmer: 'shimmer 2.5s linear infinite',
+        'spin-slow': 'spin 3s linear infinite',
       },
       keyframes: {
         blob: {

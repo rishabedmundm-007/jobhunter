@@ -75,7 +75,10 @@ def update_job_handler(event: Dict[str, Any], context: Any) -> Dict:
         job_id = event["pathParameters"]["id"]
         body = json.loads(event.get("body", "{}"))
         updates = {
-            k: v for k, v in body.items() if k in ["state", "title", "company", "notes", "link"]
+            k: v
+            for k, v in body.items()
+            if k
+            in ["state", "title", "company", "notes", "link", "stage", "outcome", "next_step_at"]
         }
         updates["updated_at"] = datetime.utcnow().isoformat()
         if "state" in updates:
