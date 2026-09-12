@@ -8,6 +8,15 @@ bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION
 
 EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0")
 EMBEDDING_DIMENSIONS = int(os.environ.get("EMBEDDING_DIMENSIONS", "512"))
+
+# Cosine similarity between a full resume embedding and a raw job-description
+# embedding runs lower in practice than the blueprint's original 0.72 guess —
+# real test data topped out around 0.52 for a genuine title-exact match, with
+# clear noise (irrelevant roles) sitting at 0.10-0.30. 0.40 was chosen from
+# that real distribution, not decided in the abstract; it's a floor a user
+# can override per-profile (see match_threshold on PROFILE), not a hardcoded
+# ceiling.
+DEFAULT_MATCH_THRESHOLD = 0.40
 HAIKU_MODEL_ID = os.environ.get(
     # Claude Haiku 4.5 requires invocation via a cross-region inference profile,
     # not the bare foundation-model ID — verified against the account's actual
@@ -71,9 +80,13 @@ def _extract_json(text: str) -> Dict[str, Any]:
 
 
 def structure_resume(resume_text: str) -> Dict[str, Any]:
-    prompt_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "prompts", "resume-structure.md"
-    )
+    # prompts/ lives under services/ (not the repo root) specifically so it's
+    # included in the Lambda deployment package — CDK bundles the whole
+    # services/ directory, and a sibling-of-services/ directory silently
+    # doesn't ship, which is exactly what broke this in production before
+    # (worked when run locally against the full repo checkout, 404'd in
+    # every deployed Lambda).
+    prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "resume-structure.md")
     with open(prompt_path) as f:
         system_prompt = f.read()
     raw = _invoke_claude(system_prompt, resume_text[:20000])
@@ -83,7 +96,7 @@ def structure_resume(resume_text: str) -> Dict[str, Any]:
 def tailor_resume(
     base_resume_json: Dict[str, Any], job_description: str, preferences: Dict[str, Any]
 ) -> Dict[str, Any]:
-    prompt_path = os.path.join(os.path.dirname(__file__), "..", "..", "prompts", "resume-tailor.md")
+    prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "resume-tailor.md")
     with open(prompt_path) as f:
         system_prompt = f.read()
     user_message = json.dumps(

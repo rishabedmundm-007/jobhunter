@@ -12,7 +12,7 @@ import boto3
 from .auth import get_user_from_token
 from shared.ddb import get_profile, update_profile
 from shared.http import response
-from shared.bedrock import embed_text, structure_resume
+from shared.bedrock import embed_text, structure_resume, DEFAULT_MATCH_THRESHOLD
 from shared.resume_parsing import extract_text
 
 logger = logging.getLogger()
@@ -205,6 +205,7 @@ def _profile_response(profile: Dict) -> Dict:
             "work_modes": profile.get("work_modes", []),
             "preferred_location": profile.get("preferred_location"),
             "sponsorship_status": profile.get("sponsorship_status"),
+            "match_threshold": float(profile.get("match_threshold", DEFAULT_MATCH_THRESHOLD)),
         }
     return {
         "resume": resume,
@@ -311,6 +312,7 @@ def save_preferences_handler(event: Dict[str, Any], context: Any) -> Dict:
         work_modes = body.get("work_modes", [])
         preferred_location = body.get("preferred_location")
         sponsorship_status = body.get("sponsorship_status")
+        match_threshold = body.get("match_threshold", DEFAULT_MATCH_THRESHOLD)
 
         if not first_name or len(first_name) > 100:
             return response(400, {"error": "Enter a valid first name."})
@@ -332,6 +334,8 @@ def save_preferences_handler(event: Dict[str, Any], context: Any) -> Dict:
             return response(400, {"error": "Select a valid preferred location."})
         if sponsorship_status not in SPONSORSHIP_STATUSES:
             return response(400, {"error": "Select a valid sponsorship status."})
+        if not isinstance(match_threshold, (int, float)) or not 0.0 <= match_threshold <= 1.0:
+            return response(400, {"error": "Match sensitivity must be between 0 and 1."})
 
         profile = update_profile(
             user_sub,
@@ -346,6 +350,7 @@ def save_preferences_handler(event: Dict[str, Any], context: Any) -> Dict:
                 "work_modes": work_modes,
                 "preferred_location": preferred_location,
                 "sponsorship_status": sponsorship_status,
+                "match_threshold": match_threshold,
                 "preferences_updated_at": datetime.utcnow().isoformat(),
             },
         )

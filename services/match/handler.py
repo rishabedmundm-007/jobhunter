@@ -11,13 +11,13 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from shared.bedrock import embed_text
+from shared.bedrock import embed_text, DEFAULT_MATCH_THRESHOLD
 from shared.ddb import get_profile, get_jobs, update_job, get_shortlisted_jobs_missing_resume
+from shared.broadcast import broadcast_to_user
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-SCORE_THRESHOLD = float(os.environ.get("MATCH_SCORE_THRESHOLD", "0.72"))
 TAILOR_TOP_N = int(os.environ.get("TAILOR_TOP_N", "5"))
 
 NO_SPONSORSHIP_PHRASES = [
@@ -57,13 +57,26 @@ def _cosine_similarity(a: List[float], b: List[float]) -> float:
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
     user_sub = event["user_sub"]
     profile = get_profile(user_sub) or {}
-    profile_embedding = profile.get("profile_embedding")
+    # DynamoDB always returns numbers as Decimal, never float (the read-side
+    # mirror of shared.ddb._dynamo_safe on the write side) — the freshly
+    # computed per-job embedding below is a plain float list from Bedrock's
+    # JSON response, and Python refuses to multiply float * Decimal.
+    raw_profile_embedding = profile.get("profile_embedding")
+    profile_embedding = [float(x) for x in raw_profile_embedding] if raw_profile_embedding else None
+    score_threshold = float(profile.get("match_threshold", DEFAULT_MATCH_THRESHOLD))
     prefs = {
         "sponsorship_status": profile.get("sponsorship_status"),
         "work_modes": profile.get("work_modes", []),
     }
 
     discovered = get_jobs(user_sub, state="DISCOVERED", limit=200)
+    broadcast_to_user(
+        user_sub,
+        {
+            "type": "pipeline:progress",
+            "payload": {"stage": "match", "status": "started", "count": len(discovered)},
+        },
+    )
     shortlisted_count = 0
     filtered_out_count = 0
 
@@ -102,8 +115,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
             logger.exception("Embedding failed for job %s", job_id)
             continue
 
-        new_state = "SHORTLISTED" if score >= SCORE_THRESHOLD else "FILTERED_OUT"
-        reasons = [f"Match score {score:.2f} vs threshold {SCORE_THRESHOLD:.2f}"]
+        new_state = "SHORTLISTED" if score >= score_threshold else "FILTERED_OUT"
+        reasons = [f"Match score {score:.2f} vs threshold {score_threshold:.2f}"]
         update_job(
             user_sub,
             job_id,
@@ -126,6 +139,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
     backlog = get_shortlisted_jobs_missing_resume(user_sub)
     backlog.sort(key=lambda j: j.get("score", 0), reverse=True)
     top_job_ids = [j["SK"].split("#", 1)[1] for j in backlog[:TAILOR_TOP_N]]
+
+    broadcast_to_user(
+        user_sub,
+        {
+            "type": "pipeline:progress",
+            "payload": {
+                "stage": "match",
+                "status": "done",
+                "shortlisted": shortlisted_count,
+                "filtered_out": filtered_out_count,
+            },
+        },
+    )
 
     return {
         "shortlisted_count": shortlisted_count,

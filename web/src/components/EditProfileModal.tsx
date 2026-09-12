@@ -51,6 +51,7 @@ export default function EditProfileModal({
   const [workModes, setWorkModes] = useState<string[]>(preferences.work_modes)
   const [preferredLocation, setPreferredLocation] = useState(preferences.preferred_location)
   const [sponsorshipStatus, setSponsorshipStatus] = useState(preferences.sponsorship_status)
+  const [matchThreshold, setMatchThreshold] = useState(preferences.match_threshold ?? 0.4)
 
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -91,6 +92,7 @@ export default function EditProfileModal({
         work_modes: workModes,
         preferred_location: preferredLocation,
         sponsorship_status: sponsorshipStatus,
+        match_threshold: matchThreshold,
       })
       toast.success('Changes saved')
       onSaved({ ...contact, ...result.contact }, result.preferences)
@@ -249,6 +251,30 @@ export default function EditProfileModal({
                 placeholder="Select your work authorization status"
                 error={fieldError('sponsorshipStatus')}
               />
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Match sensitivity
+                  </label>
+                  <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+                    {Math.round(matchThreshold * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={matchThreshold}
+                  onChange={(e) => setMatchThreshold(Number(e.target.value))}
+                  className="w-full accent-indigo-600"
+                />
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  How closely a job needs to match your resume to be shortlisted. Lower catches
+                  more jobs (but some less relevant); higher is stricter and may shortlist fewer.
+                </p>
+              </div>
             </div>
           )}
 

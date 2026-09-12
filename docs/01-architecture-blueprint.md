@@ -258,9 +258,11 @@ Mostly time, not money: expect 2–4 hours/week for ATS adapter breakage, job AP
 ├── services/
 │   ├── api/                 # REST handlers
 │   ├── ingest/  match/  tailor/  apply/  push/
-│   └── shared/              # models, DynamoDB access layer, logging
+│   ├── shared/              # models, DynamoDB access layer, logging
+│   └── prompts/             # versioned Bedrock prompt templates — lives under
+│                             # services/ (not the repo root) so it ships inside
+│                             # the Lambda deployment package
 ├── web/                     # React + Vite + Tailwind SPA
-├── prompts/                 # versioned Bedrock prompt templates
 ├── tests/
 └── .github/workflows/       # ci.yml, deploy-dev.yml, deploy-prod.yml
 ```

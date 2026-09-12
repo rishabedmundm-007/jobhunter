@@ -15,14 +15,21 @@ from typing import Any, Dict, List, Optional
 import boto3
 import httpx
 
-from shared.ddb import get_profile, job_id_from_source, upsert_discovered_job
+from shared.ddb import (
+    get_profile,
+    job_id_from_source,
+    content_fingerprint,
+    claim_content_fingerprint,
+    upsert_discovered_job,
+)
+from shared.broadcast import broadcast_to_user
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 ssm = boto3.client("ssm")
 ENV_NAME = os.environ.get("ENV_NAME", "dev")
-LOOKBACK_HOURS = 24
+LOOKBACK_HOURS = 24 * 10  # 10 days — a strict 24h window left almost nothing to find
 HTTP_TIMEOUT = 15.0
 
 
@@ -186,8 +193,18 @@ def _fetch_jsearch(keywords: str, location: str) -> List[Dict]:
     if not creds:
         return []
     resp = httpx.get(
-        "https://jsearch.p.rapidapi.com/search",
-        params={"query": f"{keywords} in {location}", "date_posted": "today", "num_pages": "1"},
+        # "/search" 404s on this account's plan (RapidAPI proxy rejects it before
+        # reaching JSearch's backend) — "/search-v2" is the current live
+        # endpoint, confirmed directly against the account's own RapidAPI
+        # console, with a nested {"data": {"jobs": [...]}} shape rather than
+        # v1's flat {"data": [...]}.
+        "https://jsearch.p.rapidapi.com/search-v2",
+        params={
+            "query": f"{keywords} in {location}",
+            "country": "us",
+            "date_posted": "today",
+            "num_pages": "1",
+        },
         headers={
             "X-RapidAPI-Key": creds["api_key"],
             "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
@@ -195,16 +212,15 @@ def _fetch_jsearch(keywords: str, location: str) -> List[Dict]:
         timeout=HTTP_TIMEOUT,
     )
     resp.raise_for_status()
-    results = resp.json().get("data", [])
+    results = resp.json().get("data", {}).get("jobs", [])
     out = []
     for r in results:
-        job_location = ", ".join(filter(None, [r.get("job_city"), r.get("job_state")]))
         out.append(
             {
                 "external_id": r.get("job_id", ""),
                 "title": r.get("job_title", ""),
                 "company": r.get("employer_name", ""),
-                "location": job_location,
+                "location": r.get("job_location", ""),
                 "description": r.get("job_description", ""),
                 "link": r.get("job_apply_link", ""),
                 "posted_at": r.get("job_posted_at_datetime_utc"),
@@ -239,9 +255,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
         "jsearch": lambda kw: _fetch_jsearch(kw, location),
     }
 
-    for role in job_roles:
-        keywords = _role_to_keywords(role)
-        for source, fetch in fetchers.items():
+    # Sources outer, roles inner (rather than the reverse) so each source can
+    # broadcast one "checking"/"found" pair covering all of the user's roles,
+    # instead of one per role — meaningful live updates without being chatty.
+    for source, fetch in fetchers.items():
+        broadcast_to_user(
+            user_sub,
+            {
+                "type": "pipeline:progress",
+                "payload": {"stage": "ingest", "source": source, "status": "checking"},
+            },
+        )
+        source_found = 0
+        for role in job_roles:
+            keywords = _role_to_keywords(role)
             try:
                 raw_jobs = fetch(keywords)
             except Exception as e:
@@ -252,6 +279,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
                 sources_run.append(source)
             for raw in raw_jobs:
                 if not raw.get("external_id") or not _is_recent(raw.get("posted_at"), cutoff):
+                    continue
+                # Cross-source duplicate guard: skip before even attempting the
+                # per-source insert if this same title+company has already
+                # surfaced from any source, in any state (applied, skipped,
+                # etc.) — never let a job the user already dealt with resurface
+                # under a different source's id.
+                if not claim_content_fingerprint(
+                    user_sub, content_fingerprint(raw["title"], raw["company"])
+                ):
                     continue
                 job_id = job_id_from_source(source, raw["external_id"])
                 now = datetime.now(timezone.utc).isoformat()
@@ -277,5 +313,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
                 )
                 if inserted:
                     ingested += 1
+                    source_found += 1
+        broadcast_to_user(
+            user_sub,
+            {
+                "type": "pipeline:progress",
+                "payload": {
+                    "stage": "ingest",
+                    "source": source,
+                    "status": "done",
+                    "found": source_found,
+                },
+            },
+        )
 
     return {"sources_run": sources_run, "ingested_count": ingested, "errors": errors}

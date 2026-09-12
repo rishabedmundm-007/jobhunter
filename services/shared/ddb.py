@@ -1,4 +1,5 @@
 import hashlib
+import re
 import boto3
 import os
 from botocore.exceptions import ClientError
@@ -33,6 +34,40 @@ def create_job(user_sub: str, job_id: str, job_data: Dict[str, Any]) -> Dict:
 def job_id_from_source(source: str, external_id: str) -> str:
     """Deterministic job identity so re-ingesting the same posting is a no-op."""
     return hashlib.sha256(f"{source}:{external_id}".encode()).hexdigest()[:32]
+
+
+def content_fingerprint(title: str, company: str) -> str:
+    """Identity for the same real-world posting across *different* sources —
+    (source, external_id) alone can't catch this, since e.g. JSearch (which
+    aggregates Google for Jobs) and Adzuna can both surface the identical
+    posting under two unrelated external IDs. Deliberately coarse (title +
+    company only, no location — location strings are inconsistent/missing
+    across sources) so it fails safe toward merging rather than toward
+    letting a real duplicate through and risking a second application to a
+    job already applied to, skipped, or otherwise finalized."""
+
+    def normalize(s: str) -> str:
+        return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+
+    return hashlib.sha256(f"{normalize(title)}|{normalize(company)}".encode()).hexdigest()[:32]
+
+
+def claim_content_fingerprint(user_sub: str, fingerprint: str) -> bool:
+    """Returns True the first time this fingerprint is seen for this user
+    (and durably claims it), False on every subsequent attempt — regardless
+    of what happened to the original job (applied/skipped/filtered out), so
+    a re-discovered duplicate can never re-enter the pipeline under a new
+    source's job id."""
+    try:
+        table.put_item(
+            Item={"PK": f"USER#{user_sub}", "SK": f"FINGERPRINT#{fingerprint}"},
+            ConditionExpression="attribute_not_exists(PK)",
+        )
+        return True
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            return False
+        raise
 
 
 def upsert_discovered_job(user_sub: str, job_id: str, job_data: Dict[str, Any]) -> bool:
