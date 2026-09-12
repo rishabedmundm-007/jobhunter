@@ -411,7 +411,7 @@ class ApiStack(cdk.Stack):
         # ---------------------------------------------------------------
         # On-demand pipeline trigger — lets a user watch a search run live
         # instead of only ever seeing the scheduled 5x/day results after the
-        # fact. Rate-limited to once/hour in the handler itself (real Bedrock
+        # fact. Rate-limited to once/15min in the handler itself (real Bedrock
         # + JSearch cost per run). References the pipeline state machine by
         # its predictable name/ARN (both stacks fix the same naming
         # convention) rather than a cross-stack construct reference, since

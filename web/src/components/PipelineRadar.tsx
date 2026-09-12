@@ -7,7 +7,7 @@ import { useToast } from '../hooks/useToast'
 import { fluidSpring } from '../utils/motion'
 import { JobSource, PipelineProgress, PipelineRun } from '../types'
 
-const COOLDOWN_SECONDS = 3600
+const COOLDOWN_SECONDS = 900
 const LAST_RUN_KEY = 'pipeline_manual_run_at'
 
 const SOURCES: { id: JobSource; label: string; icon: string }[] = [
@@ -48,7 +48,7 @@ export default function PipelineRadar({ onClose }: { onClose: () => void }) {
   }
 
   // Restore cooldown state on open so it survives closing/reopening the panel
-  // within the hour (the server enforces the real limit regardless).
+  // within the cooldown window (the server enforces the real limit regardless).
   useEffect(() => {
     const lastRun = localStorage.getItem(LAST_RUN_KEY)
     if (lastRun) {
@@ -129,7 +129,7 @@ export default function PipelineRadar({ onClose }: { onClose: () => void }) {
     } catch (err) {
       if (err instanceof RateLimitError) {
         setCooldownRemaining(err.retryAfterSeconds)
-        toast.error('You can run a manual search once per hour.')
+        toast.error('You can run a manual search once every 15 minutes.')
       } else {
         toast.error(err instanceof Error ? err.message : 'Failed to start search')
       }

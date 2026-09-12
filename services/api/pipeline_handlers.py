@@ -13,7 +13,7 @@ from shared.http import response
 sfn = boto3.client("stepfunctions")
 ENV_NAME = os.environ.get("ENV_NAME", "dev")
 STATE_MACHINE_ARN = os.environ["STATE_MACHINE_ARN"]
-MANUAL_RUN_COOLDOWN = timedelta(hours=1)
+MANUAL_RUN_COOLDOWN = timedelta(minutes=15)
 
 
 def trigger_pipeline_handler(event: Dict[str, Any], context: Any) -> Dict:
@@ -35,7 +35,7 @@ def trigger_pipeline_handler(event: Dict[str, Any], context: Any) -> Dict:
                 return response(
                     429,
                     {
-                        "error": "You can run a manual search once per hour.",
+                        "error": "You can run a manual search once every 15 minutes.",
                         "retry_after_seconds": retry_after,
                     },
                 )
