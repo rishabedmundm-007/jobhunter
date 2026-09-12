@@ -454,6 +454,44 @@ class ApiStack(cdk.Stack):
             authorizer=jwt_authorizer,
         )
 
+        # ---------------------------------------------------------------
+        # On-demand, per-job resume tailoring — same predictable-ARN pattern as
+        # the pipeline state machine above, invoking PipelineStack's
+        # TailorFunction directly (InvocationType="Event") instead of routing
+        # through Step Functions, since this is a single job, not a run.
+        # ---------------------------------------------------------------
+
+        tailor_function_arn = (
+            f"arn:aws:lambda:{self.region}:{self.account}:function:jobhunter-tailor-{env_name}"
+        )
+        lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["lambda:InvokeFunction"],
+                resources=[tailor_function_arn],
+            )
+        )
+
+        trigger_tailor_fn = lambda_.Function(
+            self,
+            "TriggerTailorFunction",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="api.tailor_handlers.trigger_tailor_handler",
+            code=services_code,
+            role=lambda_role,
+            environment={**job_fn_env, "TAILOR_FUNCTION_ARN": tailor_function_arn},
+            timeout=cdk.Duration.seconds(10),
+            memory_size=256,
+        )
+
+        self.http_api.add_routes(
+            path="/jobs/{id}/tailor",
+            methods=[apigw.HttpMethod.POST],
+            integration=integrations.HttpLambdaIntegration(
+                "TriggerTailorIntegration", trigger_tailor_fn
+            ),
+            authorizer=jwt_authorizer,
+        )
+
         cdk.CfnOutput(
             self,
             "HttpApiEndpoint",

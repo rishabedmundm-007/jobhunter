@@ -114,7 +114,10 @@ class PipelineStack(cdk.Stack):
             memory_size=512,
         )
 
-        tailor_fn = lambda_.Function(
+        # Not bound to a variable — this stack no longer wires it into the state
+        # machine (see the definition below); it only needs to exist under its
+        # predictable name for ApiStack to invoke directly.
+        lambda_.Function(
             self,
             "TailorFunction",
             runtime=lambda_.Runtime.PYTHON_3_12,
@@ -125,6 +128,13 @@ class PipelineStack(cdk.Stack):
             layers=[deps_layer],
             timeout=cdk.Duration.minutes(2),
             memory_size=512,
+            # Predictable name (matching the state machine's own convention below)
+            # so the API stack can invoke it directly by ARN — tailoring is now a
+            # user-triggered, per-job action (see api.tailor_handlers), not a step
+            # this state machine runs itself. A construct reference back from
+            # ApiStack would be circular, since this stack already depends on
+            # ApiStack for the WebSocket endpoint.
+            function_name=f"jobhunter-tailor-{env_name}",
         )
 
         finalize_fn = lambda_.Function(
@@ -171,27 +181,14 @@ class PipelineStack(cdk.Stack):
             payload_response_only=True,
         )
 
-        tailor_task = tasks.LambdaInvoke(
-            self, "TailorJob", lambda_function=tailor_fn, payload_response_only=True
-        )
-        tailor_map = sfn.Map(
-            self,
-            "TailorShortlisted",
-            items_path=sfn.JsonPath.string_at("$.match_result.tailor_job_ids"),
-            item_selector={
-                "user_sub.$": "$.user_sub",
-                "job_id.$": "$$.Map.Item.Value",
-            },
-            result_path="$.tailor_results",
-            max_concurrency=2,
-        )
-        tailor_map.item_processor(tailor_task)
-
         finalize_task = tasks.LambdaInvoke(
             self, "FinalizeRun", lambda_function=finalize_fn, payload_response_only=True
         )
 
-        definition = ingest_parallel.next(match_task).next(tailor_map).next(finalize_task)
+        # Tailoring is deliberately not a state here — see tailor_fn above. The
+        # scheduled/on-demand run only discovers and scores jobs; a user decides
+        # per-job whether to spend a Bedrock call turning a match into a resume.
+        definition = ingest_parallel.next(match_task).next(finalize_task)
 
         # Express workflows don't retain queryable execution history the way
         # Standard ones do — CloudWatch Logs is the only way to see what a run

@@ -1,10 +1,12 @@
 """Generate one ATS-clean, job-specific resume for a shortlisted job.
 
-Invoked once per job ID from the pipeline's Map state. Broadcasts a
-"pipeline:progress" update per job (for the on-demand live-run view) in
-addition to the pipeline's final batched "pipeline:completed" event from
-finalize.py — a start/done pair per job is small enough (top-N capped) not to
-flood the socket the way a per-job "job:updated" would.
+Invoked directly (InvocationType="Event") by api.tailor_handlers when a user
+clicks "Generate Resume" on a specific shortlisted job — tailoring a resume is
+real Bedrock spend, so it happens per-job, on request, rather than the
+pipeline queuing up a batch of them automatically. Broadcasts a
+"pipeline:progress" update for the live-run view, and a "job:updated" once
+the job's own state actually changes, so the board reflects it without a
+manual refresh.
 """
 
 import logging
@@ -44,6 +46,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
             "payload": {
                 "stage": "tailor",
                 "status": "started",
+                "job_id": job_id,
                 "job_title": job.get("title"),
                 "company": job.get("company"),
             },
@@ -65,7 +68,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
             user_sub,
             {
                 "type": "pipeline:progress",
-                "payload": {"stage": "tailor", "status": "error", "job_title": job.get("title")},
+                "payload": {
+                    "stage": "tailor",
+                    "status": "error",
+                    "job_id": job_id,
+                    "job_title": job.get("title"),
+                },
             },
         )
         return {"job_id": job_id, "status": "error"}
@@ -93,7 +101,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
             "created_at": now,
         },
     )
-    update_job(
+    updated_item = update_job(
         user_sub,
         job_id,
         {
@@ -105,6 +113,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
             "GSI1SK": now,
         },
     )
+    updated_item["id"] = job_id
+    updated_item["resume_url"] = s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": BUCKET_NAME, "Key": s3_key},
+        ExpiresIn=3600,
+    )
+    broadcast_to_user(user_sub, {"type": "job:updated", "payload": updated_item})
     broadcast_to_user(
         user_sub,
         {
@@ -112,6 +127,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
             "payload": {
                 "stage": "tailor",
                 "status": "done",
+                "job_id": job_id,
                 "job_title": job.get("title"),
                 "company": job.get("company"),
             },

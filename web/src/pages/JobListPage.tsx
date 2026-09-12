@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
-import { Job, JobState } from '../types'
+import { Job, JobState, PipelineProgress } from '../types'
 import { jobsApi } from '../services/api'
+import { ws } from '../services/websocket'
 import { useToast } from '../hooks/useToast'
 import { STATE_META } from '../utils/stateMeta'
 import JobListRow from '../components/JobListRow'
@@ -24,7 +25,29 @@ export default function JobListPage({ jobs, onJobsChange, mode }: {
 }) {
   const { state } = useParams<{ state: JobState }>()
   const [pendingDelete, setPendingDelete] = useState<Job | null>(null)
+  const [tailoringIds, setTailoringIds] = useState<Set<string>>(new Set())
   const toast = useToast()
+
+  // A job leaves SHORTLISTED (and this in-flight set becomes moot) the moment
+  // its tailored resume lands, via the job:updated broadcast the parent's
+  // websocket handler already applies to `jobs` — this effect only has to
+  // handle the failure path, where the job stays SHORTLISTED and the button
+  // needs to re-enable with an explanation.
+  useEffect(() => {
+    const onProgress = (payload: PipelineProgress) => {
+      if (payload.stage === 'tailor' && payload.status === 'error' && payload.job_id) {
+        setTailoringIds(prev => {
+          if (!prev.has(payload.job_id!)) return prev
+          const next = new Set(prev)
+          next.delete(payload.job_id!)
+          return next
+        })
+        toast.error(`Couldn't generate a tailored resume for "${payload.job_title ?? 'that job'}".`)
+      }
+    }
+    ws.on('pipeline:progress', onProgress)
+    return () => ws.off('pipeline:progress', onProgress)
+  }, [])
 
   const { title, chipClass, items } = useMemo(() => {
     if (mode === 'state' && state) {
@@ -51,6 +74,21 @@ export default function JobListPage({ jobs, onJobsChange, mode }: {
       toast.success(`Moved "${updated.title}" to ${STATE_META[newState].label}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to move job')
+    }
+  }
+
+  const handleTailorJob = async (job: Job) => {
+    setTailoringIds(prev => new Set(prev).add(job.id))
+    try {
+      await jobsApi.tailorJob(job.id)
+      toast.success(`Generating a tailored resume for "${job.title}"…`)
+    } catch (err) {
+      setTailoringIds(prev => {
+        const next = new Set(prev)
+        next.delete(job.id)
+        return next
+      })
+      toast.error(err instanceof Error ? err.message : 'Failed to start tailoring')
     }
   }
 
@@ -114,6 +152,8 @@ export default function JobListPage({ jobs, onJobsChange, mode }: {
                 index={index}
                 onMove={(newState) => handleMoveJob(job.id, newState)}
                 onDelete={() => setPendingDelete(job)}
+                onTailor={() => handleTailorJob(job)}
+                isTailoring={tailoringIds.has(job.id)}
               />
             ))}
           </AnimatePresence>

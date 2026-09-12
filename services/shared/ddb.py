@@ -163,13 +163,6 @@ def delete_connection(user_sub: str, connection_id: str) -> None:
     table.delete_item(Key={"PK": f"USER#{user_sub}", "SK": f"CONNECTION#{connection_id}"})
 
 
-def get_shortlisted_jobs_missing_resume(user_sub: str) -> List[Dict]:
-    """Backlog-aware tailoring input: every SHORTLISTED job with no tailored resume yet,
-    not just ones discovered this run."""
-    jobs = get_jobs(user_sub, state="SHORTLISTED", limit=1000)
-    return [j for j in jobs if not j.get("tailored_resume_key")]
-
-
 def put_resume_version(user_sub: str, job_id: str, resume_data: Dict[str, Any]) -> Dict:
     item = _dynamo_safe({"PK": f"USER#{user_sub}", "SK": f"RESUME#{job_id}", **resume_data})
     table.put_item(Item=item)

@@ -48,6 +48,17 @@ export const jobsApi = {
     });
     if (!res.ok) throw new Error('Failed to delete job');
   },
+
+  async tailorJob(id: string): Promise<void> {
+    const res = await fetch(`${API_URL}/jobs/${id}/tailor`, {
+      method: 'POST',
+      headers: headers(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to start tailoring');
+    }
+  },
 };
 
 export const profileApi = {

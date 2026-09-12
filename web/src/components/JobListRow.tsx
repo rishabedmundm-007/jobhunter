@@ -5,10 +5,9 @@ import { Job, JobState } from '../types'
 import { STATES, STATE_META } from '../utils/stateMeta'
 import { STAGE_LABELS, OUTCOME_META } from '../utils/trackingOptions'
 
-// RESUME_READY is set by the tailoring pipeline once a resume actually
-// exists for the job — it's deliberately not offered here, since manually
-// picking it would just relabel the job "Resume Ready" with no resume behind
-// it (and no way to ever get one, since tailoring only looks at SHORTLISTED).
+// RESUME_READY is set by the tailor Lambda once a resume actually exists for
+// the job — it's deliberately not offered here, since manually picking it
+// would just relabel the job "Resume Ready" with no resume behind it.
 const MANUALLY_SELECTABLE_STATES = STATES.filter(s => s !== 'RESUME_READY')
 
 interface JobListRowProps {
@@ -16,6 +15,8 @@ interface JobListRowProps {
   index: number
   onMove: (state: JobState) => void
   onDelete: () => void
+  onTailor?: () => void
+  isTailoring?: boolean
 }
 
 // A single stylized list row — used everywhere a bucket's jobs are enumerated
@@ -23,7 +24,7 @@ interface JobListRowProps {
 // and shows it whenever tailored_resume_key exists, not just while the job is
 // still sitting in RESUME_READY — approving a job into APPLIED shouldn't make
 // its tailored resume unreachable.
-const JobListRow = forwardRef<HTMLDivElement, JobListRowProps>(({ job, index, onMove, onDelete }, ref) => {
+const JobListRow = forwardRef<HTMLDivElement, JobListRowProps>(({ job, index, onMove, onDelete, onTailor, isTailoring }, ref) => {
   const meta = STATE_META[job.state]
 
   return (
@@ -81,7 +82,32 @@ const JobListRow = forwardRef<HTMLDivElement, JobListRowProps>(({ job, index, on
         </div>
       </div>
 
-      {job.state === 'RESUME_READY' ? (
+      {job.state === 'SHORTLISTED' ? (
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <button
+            onClick={onTailor}
+            disabled={isTailoring}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isTailoring ? 'Generating…' : '✨ Generate Resume'}
+          </button>
+          <button
+            onClick={() => onMove('SKIPPED')}
+            disabled={isTailoring}
+            className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-500/15 dark:text-slate-300 dark:hover:bg-slate-500/25"
+          >
+            Skip
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={isTailoring}
+            aria-label={`Delete ${job.title} at ${job.company}`}
+            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+          >
+            Delete
+          </button>
+        </div>
+      ) : job.state === 'RESUME_READY' ? (
         <div className="flex flex-shrink-0 items-center gap-2">
           <button
             onClick={() => onMove('APPLIED')}

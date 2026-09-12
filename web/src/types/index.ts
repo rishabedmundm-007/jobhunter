@@ -106,6 +106,7 @@ export interface PipelineProgress {
   count?: number;
   shortlisted?: number;
   filtered_out?: number;
+  job_id?: string;
   job_title?: string;
   company?: string;
 }

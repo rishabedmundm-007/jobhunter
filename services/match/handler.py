@@ -1,24 +1,22 @@
-"""Score DISCOVERED jobs against the user's resume/preferences, then pick a
-capped, backlog-aware shortlist to send to tailoring.
+"""Score DISCOVERED jobs against the user's resume/preferences.
 
 Hard filters run first and are pure text heuristics (source APIs/scrapes don't
 give us clean structured work-mode/sponsorship fields), so a job only pays for an
-embedding call once it survives them.
+embedding call once it survives them. Scoring only shortlists jobs — tailoring
+a resume for one is a separate, user-triggered action (api.tailor_handlers),
+not something this step queues up automatically.
 """
 
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from shared.bedrock import embed_text, DEFAULT_MATCH_THRESHOLD
-from shared.ddb import get_profile, get_jobs, update_job, get_shortlisted_jobs_missing_resume
+from shared.ddb import get_profile, get_jobs, update_job
 from shared.broadcast import broadcast_to_user
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
-TAILOR_TOP_N = int(os.environ.get("TAILOR_TOP_N", "5"))
 
 NO_SPONSORSHIP_PHRASES = [
     "no sponsorship",
@@ -134,12 +132,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
         else:
             filtered_out_count += 1
 
-    # Backlog-aware: pick top-N from every untailored SHORTLISTED job, not just
-    # ones scored in this run, so a light run doesn't waste its tailoring budget.
-    backlog = get_shortlisted_jobs_missing_resume(user_sub)
-    backlog.sort(key=lambda j: j.get("score", 0), reverse=True)
-    top_job_ids = [j["SK"].split("#", 1)[1] for j in backlog[:TAILOR_TOP_N]]
-
     broadcast_to_user(
         user_sub,
         {
@@ -156,5 +148,4 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
     return {
         "shortlisted_count": shortlisted_count,
         "filtered_out_count": filtered_out_count,
-        "tailor_job_ids": top_job_ids,
     }
