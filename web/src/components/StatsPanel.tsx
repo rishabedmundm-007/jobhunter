@@ -26,6 +26,29 @@ function StatTile({ label, value, delta, to }: { label: string; value: string; d
   return <div className="glass rounded-2xl p-4">{content}</div>
 }
 
+// The pipeline-insight rows sit on a solid indigo gradient (not the site's
+// translucent .glass), deliberately, so this panel reads as a distinct
+// "analytics" block against the neutral glass tiles for day-to-day counts.
+function InsightRow({ label, value, to }: { label: string; value: string; to?: string }) {
+  const content = (
+    <>
+      <span className="text-xs font-medium text-indigo-200">{label}</span>
+      <span className="font-display text-xl font-bold text-white">{value}</span>
+    </>
+  )
+  if (to) {
+    return (
+      <Link
+        to={to}
+        className="flex items-center justify-between rounded-xl px-3 py-2.5 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+      >
+        {content}
+      </Link>
+    )
+  }
+  return <div className="flex items-center justify-between rounded-xl px-3 py-2.5">{content}</div>
+}
+
 function formatRelativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
   const mins = Math.round(diffMs / 60000)
@@ -63,20 +86,27 @@ export default function StatsPanel({ jobs, latestRun }: { jobs: Job[]; latestRun
 
   return (
     <section aria-label="Board statistics" className="mb-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Total tracked" value={String(total)} delta={thisWeek > 0 ? `+${thisWeek} this wk` : undefined} to="/board/all" />
-        <StatTile label="Applied" value={String(applied)} to="/board/state/APPLIED" />
-        <StatTile label="In progress" value={String(inProgress)} to="/board/state/IN_PROGRESS" />
-        <StatTile label="Discovered → applied" value={`${conversion}%`} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:col-span-2">
+          <StatTile label="Total tracked" value={String(total)} delta={thisWeek > 0 ? `+${thisWeek} this wk` : undefined} to="/board/all" />
+          <StatTile label="Applied" value={String(applied)} to="/board/state/APPLIED" />
+          <StatTile label="In progress" value={String(inProgress)} to="/board/state/IN_PROGRESS" />
+        </div>
+
+        <div className="rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 p-3 shadow-lg shadow-indigo-500/25 ring-1 ring-indigo-400/30">
+          <h3 className="mb-1 px-3 pt-1 text-xs font-semibold uppercase tracking-wide text-indigo-200">
+            Pipeline Insights
+          </h3>
+          <div className="divide-y divide-white/10">
+            <InsightRow label="Discovered → applied" value={`${conversion}%`} />
+            <InsightRow label="Avg match score" value={avgScore !== null ? `${avgScore}%` : '—'} to={avgScore !== null ? '/board/scored' : undefined} />
+            <InsightRow label="Tailored today" value={String(tailoredToday)} to="/board/tailored-today" />
+            <InsightRow label="Last pipeline run" value={latestRun ? formatRelativeTime(latestRun.run_at) : '—'} to="/board/last-run" />
+          </div>
+        </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <StatTile label="Avg match score" value={avgScore !== null ? `${avgScore}%` : '—'} to={avgScore !== null ? '/board/scored' : undefined} />
-        <StatTile label="Tailored today" value={String(tailoredToday)} to="/board/tailored-today" />
-        <StatTile label="Last pipeline run" value={latestRun ? formatRelativeTime(latestRun.run_at) : '—'} to="/board/last-run" />
-      </div>
-
-      <div className="glass mt-3 rounded-2xl p-4">
+      <div className="glass mt-4 rounded-2xl p-4">
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Jobs by status
         </h3>
