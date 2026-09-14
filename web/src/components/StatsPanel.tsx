@@ -3,13 +3,12 @@ import { Link } from 'react-router-dom'
 import { Job, PipelineRun } from '../types'
 import { STATES, STATE_META } from '../utils/stateMeta'
 
-function StatTile({ label, value, delta, to }: { label: string; value: string; delta?: string; to?: string }) {
+function StatTile({ label, value, to }: { label: string; value: string; to?: string }) {
   const content = (
     <>
       <div className="text-xs font-medium text-slate-600 dark:text-slate-400">{label}</div>
       <div className="mt-1 flex items-baseline gap-2">
         <span className="font-display text-3xl font-bold text-ink dark:text-white">{value}</span>
-        {delta && <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">{delta}</span>}
       </div>
     </>
   )
@@ -65,8 +64,12 @@ export default function StatsPanel({ jobs, latestRun }: { jobs: Job[]; latestRun
   const inProgress = jobs.filter(j => j.state === 'IN_PROGRESS').length
   const conversion = total > 0 ? Math.round((applied / total) * 100) : 0
 
-  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-  const thisWeek = jobs.filter(j => new Date(j.created_at).getTime() >= oneWeekAgo).length
+  const now = Date.now()
+  const trackedWithin = (days: number) =>
+    jobs.filter(j => now - new Date(j.created_at).getTime() <= days * 24 * 60 * 60 * 1000).length
+  const last24h = trackedWithin(1)
+  const last7d = trackedWithin(7)
+  const last30d = trackedWithin(30)
 
   const scored = jobs.filter(j => typeof j.score === 'number')
   const avgScore = scored.length > 0
@@ -87,10 +90,17 @@ export default function StatsPanel({ jobs, latestRun }: { jobs: Job[]; latestRun
   return (
     <section aria-label="Board statistics" className="mb-6">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:col-span-2">
-          <StatTile label="Total tracked" value={String(total)} delta={thisWeek > 0 ? `+${thisWeek} this wk` : undefined} to="/board/all" />
-          <StatTile label="Applied" value={String(applied)} to="/board/state/APPLIED" />
-          <StatTile label="In progress" value={String(inProgress)} to="/board/state/IN_PROGRESS" />
+        <div className="flex flex-col gap-3 lg:col-span-2">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatTile label="Total tracked" value={String(total)} to="/board/all" />
+            <StatTile label="Last 24h" value={String(last24h)} to="/board/recent/1" />
+            <StatTile label="Last 7 days" value={String(last7d)} to="/board/recent/7" />
+            <StatTile label="Last 30 days" value={String(last30d)} to="/board/recent/30" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <StatTile label="Applied" value={String(applied)} to="/board/state/APPLIED" />
+            <StatTile label="In progress" value={String(inProgress)} to="/board/state/IN_PROGRESS" />
+          </div>
         </div>
 
         <div className="rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-900 p-3 shadow-lg shadow-indigo-500/25 ring-1 ring-indigo-400/30">

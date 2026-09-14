@@ -9,7 +9,7 @@ import { STATE_META } from '../utils/stateMeta'
 import JobListRow from '../components/JobListRow'
 import ConfirmDialog from '../components/ConfirmDialog'
 
-export type JobListMode = 'state' | 'all' | 'tailored-today' | 'scored'
+export type JobListMode = 'state' | 'all' | 'tailored-today' | 'scored' | 'recent'
 
 function isToday(iso?: string): boolean {
   if (!iso) return false
@@ -23,7 +23,7 @@ export default function JobListPage({ jobs, onJobsChange, mode }: {
   onJobsChange: (jobs: Job[]) => void
   mode: JobListMode
 }) {
-  const { state } = useParams<{ state: JobState }>()
+  const { state, days } = useParams<{ state: JobState; days: string }>()
   const [pendingDelete, setPendingDelete] = useState<Job | null>(null)
   const [tailoringIds, setTailoringIds] = useState<Set<string>>(new Set())
   const toast = useToast()
@@ -61,8 +61,15 @@ export default function JobListPage({ jobs, onJobsChange, mode }: {
       const scored = jobs.filter(j => typeof j.score === 'number').sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
       return { title: 'Scored Jobs', chipClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300', items: scored }
     }
+    if (mode === 'recent' && days) {
+      const windowMs = Number(days) * 24 * 60 * 60 * 1000
+      const cutoff = Date.now() - windowMs
+      const recent = jobs.filter(j => new Date(j.created_at).getTime() >= cutoff)
+      const title = days === '1' ? 'Tracked in the Last 24 Hours' : `Tracked in the Last ${days} Days`
+      return { title, chipClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300', items: recent }
+    }
     return { title: 'All Jobs', chipClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300', items: jobs }
-  }, [mode, state, jobs])
+  }, [mode, state, days, jobs])
 
   const scored = items.filter(j => typeof j.score === 'number')
   const avgScore = scored.length > 0 ? Math.round((scored.reduce((sum, j) => sum + (j.score || 0), 0) / scored.length) * 100) : null

@@ -214,6 +214,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           <Route path="/board/state/:state" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="state" />} />
           <Route path="/board/tailored-today" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="tailored-today" />} />
           <Route path="/board/scored" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="scored" />} />
+          <Route path="/board/recent/:days" element={<JobListPage jobs={jobs} onJobsChange={setJobs} mode="recent" />} />
           <Route path="/board/last-run" element={<RunDetailPage latestRun={latestRun} />} />
           <Route path="/board/job/:id" element={<JobDetailPage jobs={jobs} onJobsChange={setJobs} />} />
         </Routes>
