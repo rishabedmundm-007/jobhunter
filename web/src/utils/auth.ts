@@ -99,8 +99,15 @@ export const clearTokens = () => {
 export const isAuthenticated = () => !!getAccessToken();
 
 export const decodeToken = (token: string) => {
+  // JWTs are base64url (uses "-"/"_" instead of "+"/"/"), which atob() rejects
+  // outright — and the old padding formula added 4 bogus "=" when the segment
+  // was already a multiple of 4 long, corrupting an otherwise-valid payload.
+  // Both bugs only surface for certain token contents, which is why this only
+  // broke sign-in for some users/sessions rather than consistently.
   const payload = token.split('.')[1];
-  const padding = 4 - (payload.length % 4);
-  const padded = payload + '='.repeat(padding);
-  return JSON.parse(atob(padded));
+  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
 };

@@ -11,6 +11,57 @@ type Mode = 'signin' | 'signup' | 'confirm' | 'forgot' | 'reset'
 const inputClass =
   'glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-slate-200 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400'
 
+function EyeIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 4.22-5.53M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <path d="M1 1l22 22" />
+    </svg>
+  )
+}
+
+// Every password field gets its own independent show/hide toggle rather than
+// one shared "reveal all" state — matches how confirm-password fields work
+// elsewhere (you often want to check one without exposing the other).
+function PasswordInput({
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  autoComplete: string
+}) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        className={`${inputClass} pr-11`}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        className="absolute inset-y-0 right-0 flex items-center rounded-r-xl px-3 text-slate-400 transition hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:text-slate-500 dark:hover:text-slate-300"
+      >
+        <EyeIcon open={visible} />
+      </button>
+    </div>
+  )
+}
+
 export default function Login({ onSuccess }: { onSuccess: () => void }) {
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
@@ -192,13 +243,11 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
               autoComplete="email"
               className={inputClass}
             />
-            <input
-              type="password"
+            <PasswordInput
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               placeholder="Password"
               autoComplete="current-password"
-              className={inputClass}
             />
             <p className="text-right text-xs">
               <button type="button" onClick={() => switchMode('forgot')} className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
@@ -234,21 +283,17 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
               autoComplete="email"
               className={inputClass}
             />
-            <input
-              type="password"
+            <PasswordInput
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               placeholder="Password"
               autoComplete="new-password"
-              className={inputClass}
             />
-            <input
-              type="password"
+            <PasswordInput
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={setConfirmPassword}
               placeholder="Confirm password"
               autoComplete="new-password"
-              className={inputClass}
             />
             <p className="text-xs text-slate-400 dark:text-slate-500">
               At least 12 characters, with uppercase, lowercase, a number, and a symbol.
@@ -342,21 +387,17 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
               autoComplete="one-time-code"
               className={inputClass}
             />
-            <input
-              type="password"
+            <PasswordInput
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               placeholder="New password"
               autoComplete="new-password"
-              className={inputClass}
             />
-            <input
-              type="password"
+            <PasswordInput
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={setConfirmPassword}
               placeholder="Confirm new password"
               autoComplete="new-password"
-              className={inputClass}
             />
             <p className="text-xs text-slate-400 dark:text-slate-500">
               At least 12 characters, with uppercase, lowercase, a number, and a symbol.
