@@ -48,7 +48,7 @@ export default function KanbanBoard({ jobs, onJobsChange, firstName }: { jobs: J
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-2xl font-extrabold tracking-tight text-ink dark:text-white">
             Welcome{firstName ? `, ${firstName}` : ''}

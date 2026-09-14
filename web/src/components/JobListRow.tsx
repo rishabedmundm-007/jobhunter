@@ -83,7 +83,7 @@ const JobListRow = forwardRef<HTMLDivElement, JobListRowProps>(({ job, index, on
       </div>
 
       {job.state === 'SHORTLISTED' ? (
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
           <button
             onClick={onTailor}
             disabled={isTailoring}
@@ -108,7 +108,7 @@ const JobListRow = forwardRef<HTMLDivElement, JobListRowProps>(({ job, index, on
           </button>
         </div>
       ) : job.state === 'RESUME_READY' ? (
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
           <button
             onClick={() => onMove('APPLIED')}
             className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
@@ -130,7 +130,7 @@ const JobListRow = forwardRef<HTMLDivElement, JobListRowProps>(({ job, index, on
           </button>
         </div>
       ) : (
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
           <select
             value={job.state}
             onChange={(e) => onMove(e.target.value as JobState)}

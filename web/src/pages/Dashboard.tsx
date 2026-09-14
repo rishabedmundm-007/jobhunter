@@ -106,7 +106,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       <FluidBackground />
 
       <header className="sticky top-0 z-20 glass px-6 py-4 shadow-sm md:px-10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
+        <div className="mx-auto flex max-w-7xl 2xl:max-w-[min(88vw,1920px)] items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setDrawerOpen(true)}
@@ -180,7 +180,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         )}
       </AnimatePresence>
 
-      <main className="mx-auto max-w-7xl px-6 py-8 md:px-10">
+      <main className="mx-auto max-w-7xl 2xl:max-w-[min(88vw,1920px)] px-6 py-8 md:px-10">
         <AnimatePresence>
           {error && (
             <motion.div

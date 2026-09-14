@@ -113,7 +113,7 @@ export default function JobDetailPage({ jobs, onJobsChange }: { jobs: Job[]; onJ
         <div className="glass mt-4 rounded-2xl p-6">
           <h3 className="mb-4 text-sm font-bold text-slate-700 dark:text-slate-300">Application Progress</h3>
 
-          <div className="mb-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
             {STAGES.map((s, i) => (
               <span key={s} className={i <= currentStageIndex ? 'font-semibold text-indigo-600 dark:text-indigo-400' : ''}>
                 {STAGE_LABELS[s]}
