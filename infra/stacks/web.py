@@ -8,10 +8,10 @@ from aws_cdk import (
 from constructs import Construct
 
 # Certificate requested out-of-band via ACM (must live in us-east-1 for CloudFront)
-# for the jobsperch.com custom domain.
-SITE_CERTIFICATE_ARN = (
-    "arn:aws:acm:us-east-1:816079798423:certificate/6c0889ab-10cc-4a4a-9be7-d48fd1a0f611"
-)
+# for the jobsperch.com custom domain. Only the certificate's own ID is fixed
+# here — the account ID is filled in from self.account at synth time instead
+# of being hardcoded, since this repo is public.
+SITE_CERTIFICATE_ID = "6c0889ab-10cc-4a4a-9be7-d48fd1a0f611"
 SITE_DOMAIN_NAMES = ["jobsperch.com", "www.jobsperch.com"]
 
 
@@ -31,7 +31,9 @@ class WebStack(cdk.Stack):
         )
 
         certificate = acm.Certificate.from_certificate_arn(
-            self, "SiteCertificate", SITE_CERTIFICATE_ARN
+            self,
+            "SiteCertificate",
+            f"arn:aws:acm:us-east-1:{self.account}:certificate/{SITE_CERTIFICATE_ID}",
         )
 
         self.distribution = cloudfront.Distribution(

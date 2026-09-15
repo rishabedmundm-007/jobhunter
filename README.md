@@ -62,6 +62,6 @@ Automated job search platform. User signs up, uploads a resume, sets job prefere
 - **Deploy is manual** — `make deploy-dev` / `scripts/deploy_web.sh`, no CI/CD pipeline wired up yet.
 
 ## AWS Account
-- Account ID: 816079798423
+- Account ID: resolved from the deployer's AWS credentials (`aws sts get-caller-identity`), not hardcoded here — see `Makefile`
 - Region: us-east-1
 - GitHub Actions: Using IAM user credentials (OIDC failed)

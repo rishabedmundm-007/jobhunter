@@ -20,7 +20,7 @@ jobs:
       - run: |
           cd infra && uv sync && uv run cdk deploy --all --require-approval never \
             -c env=dev \
-            -c account=816079798423 \
+            -c account=$(aws sts get-caller-identity --query Account --output text) \
             -c region=us-east-1
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

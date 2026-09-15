@@ -1,6 +1,9 @@
 .PHONY: help dev deploy deploy-dev synth lint format test clean
 
-ACCOUNT_ID := 816079798423
+# Resolved from whichever AWS credentials are active, not hardcoded — this
+# repo is public, and the account ID is fine to derive at run time instead of
+# sitting in source.
+ACCOUNT_ID := $(shell aws sts get-caller-identity --query Account --output text)
 REGION := us-east-1
 
 help:
