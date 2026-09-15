@@ -1,4 +1,5 @@
 import { ContactInfo, Job, JobCreateInput, JobUpdateInput, Preferences, Profile, Resume } from '../types';
+import { clearTokens } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -7,11 +8,34 @@ const headers = () => ({
   'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
 });
 
+export class SessionExpiredError extends Error {
+  constructor() {
+    super('Your session has expired. Please sign in again.');
+    this.name = 'SessionExpiredError';
+  }
+}
+
+// A Cognito access token expiring mid-session used to surface as a generic
+// "Failed to fetch jobs" on whatever page happened to be open — technically
+// accurate, but it left the user staring at a broken, all-zeros dashboard
+// with no indication of what actually went wrong. Every authenticated call
+// now goes through this wrapper so an expired token is caught in one place:
+// tokens are cleared and the app is told to log out immediately, rather than
+// leaving each page to notice (or not) on its own.
+async function authedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const res = await fetch(url, { ...options, headers: { ...headers(), ...(options.headers || {}) } });
+  if (res.status === 401) {
+    clearTokens();
+    window.dispatchEvent(new Event('auth:session-expired'));
+    throw new SessionExpiredError();
+  }
+  return res;
+}
+
 export const jobsApi = {
   async createJob(input: JobCreateInput): Promise<Job> {
-    const res = await fetch(`${API_URL}/jobs`, {
+    const res = await authedFetch(`${API_URL}/jobs`, {
       method: 'POST',
-      headers: headers(),
       body: JSON.stringify(input),
     });
     if (!res.ok) {
@@ -24,17 +48,14 @@ export const jobsApi = {
   async getJobs(state?: string, limit = 50): Promise<Job[]> {
     const query = new URLSearchParams({ limit: limit.toString() });
     if (state) query.append('state', state);
-    const res = await fetch(`${API_URL}/jobs?${query}`, {
-      headers: headers(),
-    });
+    const res = await authedFetch(`${API_URL}/jobs?${query}`);
     if (!res.ok) throw new Error('Failed to fetch jobs');
     return res.json();
   },
 
   async updateJob(id: string, input: JobUpdateInput): Promise<Job> {
-    const res = await fetch(`${API_URL}/jobs/${id}`, {
+    const res = await authedFetch(`${API_URL}/jobs/${id}`, {
       method: 'PUT',
-      headers: headers(),
       body: JSON.stringify(input),
     });
     if (!res.ok) throw new Error('Failed to update job');
@@ -42,17 +63,15 @@ export const jobsApi = {
   },
 
   async deleteJob(id: string): Promise<void> {
-    const res = await fetch(`${API_URL}/jobs/${id}`, {
+    const res = await authedFetch(`${API_URL}/jobs/${id}`, {
       method: 'DELETE',
-      headers: headers(),
     });
     if (!res.ok) throw new Error('Failed to delete job');
   },
 
   async tailorJob(id: string): Promise<void> {
-    const res = await fetch(`${API_URL}/jobs/${id}/tailor`, {
+    const res = await authedFetch(`${API_URL}/jobs/${id}/tailor`, {
       method: 'POST',
-      headers: headers(),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -63,15 +82,14 @@ export const jobsApi = {
 
 export const profileApi = {
   async getProfile(): Promise<Profile> {
-    const res = await fetch(`${API_URL}/profile`, { headers: headers() });
+    const res = await authedFetch(`${API_URL}/profile`);
     if (!res.ok) throw new Error('Failed to load profile');
     return res.json();
   },
 
   async uploadResume(file: File): Promise<{ resume: Resume }> {
-    const urlRes = await fetch(`${API_URL}/profile/resume-upload-url`, {
+    const urlRes = await authedFetch(`${API_URL}/profile/resume-upload-url`, {
       method: 'POST',
-      headers: headers(),
       body: JSON.stringify({ filename: file.name, content_type: file.type, size: file.size }),
     });
     if (!urlRes.ok) {
@@ -87,9 +105,8 @@ export const profileApi = {
     });
     if (!putRes.ok) throw new Error('Failed to upload file');
 
-    const confirmRes = await fetch(`${API_URL}/profile/resume`, {
+    const confirmRes = await authedFetch(`${API_URL}/profile/resume`, {
       method: 'PUT',
-      headers: headers(),
       body: JSON.stringify({ key, filename: file.name, size: file.size }),
     });
     if (!confirmRes.ok) throw new Error('Failed to confirm upload');
@@ -97,9 +114,8 @@ export const profileApi = {
   },
 
   async savePreferences(input: ContactInfo & Preferences): Promise<{ contact: ContactInfo; preferences: Preferences }> {
-    const res = await fetch(`${API_URL}/profile/preferences`, {
+    const res = await authedFetch(`${API_URL}/profile/preferences`, {
       method: 'PUT',
-      headers: headers(),
       body: JSON.stringify(input),
     });
     if (!res.ok) {
@@ -110,9 +126,8 @@ export const profileApi = {
   },
 
   async uploadAvatar(file: File): Promise<{ contact: ContactInfo }> {
-    const urlRes = await fetch(`${API_URL}/profile/avatar-upload-url`, {
+    const urlRes = await authedFetch(`${API_URL}/profile/avatar-upload-url`, {
       method: 'POST',
-      headers: headers(),
       body: JSON.stringify({ filename: file.name, content_type: file.type, size: file.size }),
     });
     if (!urlRes.ok) {
@@ -128,9 +143,8 @@ export const profileApi = {
     });
     if (!putRes.ok) throw new Error('Failed to upload photo');
 
-    const confirmRes = await fetch(`${API_URL}/profile/avatar`, {
+    const confirmRes = await authedFetch(`${API_URL}/profile/avatar`, {
       method: 'PUT',
-      headers: headers(),
       body: JSON.stringify({ key }),
     });
     if (!confirmRes.ok) throw new Error('Failed to confirm photo upload');
@@ -148,9 +162,8 @@ export class RateLimitError extends Error {
 
 export const pipelineApi = {
   async runNow(): Promise<void> {
-    const res = await fetch(`${API_URL}/pipeline/run`, {
+    const res = await authedFetch(`${API_URL}/pipeline/run`, {
       method: 'POST',
-      headers: headers(),
     });
     if (res.status === 429) {
       const err = await res.json();

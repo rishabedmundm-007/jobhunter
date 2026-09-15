@@ -62,13 +62,19 @@ function PasswordInput({
   )
 }
 
-export default function Login({ onSuccess }: { onSuccess: () => void }) {
+export default function Login({ onSuccess, sessionExpired }: { onSuccess: () => void; sessionExpired?: boolean }) {
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [code, setCode] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  // Set from the initial prop, not an effect — App only ever mounts a fresh
+  // Login instance when this becomes true, so there's no later prop change
+  // to react to, and prop-derived state would otherwise get flagged as a
+  // footgun by lint rules that don't know that.
+  const [error, setError] = useState<string | null>(
+    sessionExpired ? 'Your session has expired. Please sign in again.' : null
+  )
   const [info, setInfo] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [leaving, setLeaving] = useState(false)

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { jobsApi, profileApi } from '../services/api'
+import { jobsApi, profileApi, SessionExpiredError } from '../services/api'
 import { ws } from '../services/websocket'
 import { ContactInfo, Job, PipelineRun, Preferences } from '../types'
 import { useDarkMode } from '../hooks/useDarkMode'
@@ -41,7 +41,12 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       const data = await jobsApi.getJobs()
       setJobs(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load jobs')
+      // A session-expiry is handled globally (App.tsx logs the user out and
+      // shows a clear message on the login screen) — showing this dashboard's
+      // own generic error banner underneath that would just be noise.
+      if (!(err instanceof SessionExpiredError)) {
+        setError(err instanceof Error ? err.message : 'Failed to load jobs')
+      }
     } finally {
       setLoading(false)
     }
