@@ -5,6 +5,7 @@ import { jobsApi } from '../services/api'
 import { useToast } from '../hooks/useToast'
 import { STATE_META } from '../utils/stateMeta'
 import { STAGES, STAGE_LABELS, OUTCOMES, OUTCOME_META } from '../utils/trackingOptions'
+import JobDescriptionView from '../components/JobDescriptionView'
 
 export default function JobDetailPage({ jobs, onJobsChange }: { jobs: Job[]; onJobsChange: (jobs: Job[]) => void }) {
   const { id } = useParams<{ id: string }>()
@@ -103,8 +104,11 @@ export default function JobDetailPage({ jobs, onJobsChange }: { jobs: Job[]; onJ
         </div>
 
         {job.description && (
-          <div className="mt-4 max-h-48 overflow-y-auto rounded-xl border border-slate-200 p-3 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
-            {job.description}
+          <div className="mt-4">
+            <h3 className="mb-2 text-sm font-bold text-slate-700 dark:text-slate-300">Job Description</h3>
+            <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+              <JobDescriptionView text={job.description} />
+            </div>
           </div>
         )}
       </div>
