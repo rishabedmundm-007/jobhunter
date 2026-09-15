@@ -1,5 +1,6 @@
 import io
-from typing import Any, Dict
+import re
+from typing import Any, Dict, List, Union
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
@@ -19,6 +20,8 @@ PAGE_WIDTH_INCHES = 8.5
 USABLE_WIDTH_INCHES = PAGE_WIDTH_INCHES - 2 * MARGIN_INCHES
 BODY_FONT = "Calibri"
 INK = RGBColor(0x1A, 0x1A, 0x2E)
+
+_BOLD_SPAN = re.compile(r"\*\*(.+?)\*\*")
 
 
 def _set_bottom_border(paragraph) -> None:
@@ -48,13 +51,36 @@ def _section_header(doc: Document, text: str) -> None:
     _set_bottom_border(p)
 
 
+def _add_bold_aware_runs(paragraph, text: str, *, size: float) -> None:
+    """Splits `**bold**` markdown spans (the tailoring prompt's markup for the
+    handful of proof-point tokens worth a skimming recruiter's attention) into
+    real bold runs; everything else is a plain run. A paragraph with no bold
+    spans just gets the one plain run — this is also the only place bullet
+    text actually gets added to its paragraph, which is the fix for the bug
+    where a prior rewrite created the "List Bullet" paragraph but never called
+    .add_run() with any text at all, rendering every bullet empty."""
+    pos = 0
+    for match in _BOLD_SPAN.finditer(text):
+        if match.start() > pos:
+            run = paragraph.add_run(text[pos : match.start()])
+            run.font.size = Pt(size)
+            run.font.name = BODY_FONT
+        run = paragraph.add_run(match.group(1))
+        run.bold = True
+        run.font.size = Pt(size)
+        run.font.name = BODY_FONT
+        pos = match.end()
+    if pos < len(text) or pos == 0:
+        run = paragraph.add_run(text[pos:])
+        run.font.size = Pt(size)
+        run.font.name = BODY_FONT
+
+
 def _bullet(doc: Document, text: str) -> None:
     p = doc.add_paragraph(style="List Bullet")
     p.paragraph_format.space_after = Pt(2)
     p.paragraph_format.line_spacing = 1.05
-    for run in p.runs:
-        run.font.size = Pt(10.5)
-        run.font.name = BODY_FONT
+    _add_bold_aware_runs(p, text, size=10.5)
 
 
 def _job_header(doc: Document, title: str, company: str, location: str, dates: str) -> None:
@@ -93,6 +119,21 @@ def _plain(doc: Document, text: str, *, size: float = 10.5, space_after: float =
     run = p.add_run(text)
     run.font.size = Pt(size)
     run.font.name = BODY_FONT
+
+
+def _skills_section(doc: Document, skills: List[Union[str, Dict[str, Any]]]) -> None:
+    _section_header(doc, "Technical Skills")
+    if skills and isinstance(skills[0], dict):
+        for group in skills:
+            category = group.get("category", "")
+            items = ", ".join(group.get("items", []))
+            if not items:
+                continue
+            _bullet(doc, f"**{category}:** {items}" if category else items)
+    else:
+        # Backward-compat: a base_resume_json structured before categorized
+        # skills existed is still a flat list of strings.
+        _plain(doc, ", ".join(skills), space_after=3)
 
 
 def render_resume_docx(resume: Dict[str, Any]) -> bytes:
@@ -138,11 +179,10 @@ def render_resume_docx(resume: Dict[str, Any]) -> bytes:
         _plain(doc, resume["summary"])
 
     if resume.get("skills"):
-        _section_header(doc, "Skills")
-        _plain(doc, ", ".join(resume["skills"]), space_after=3)
+        _skills_section(doc, resume["skills"])
 
     if resume.get("experience"):
-        _section_header(doc, "Experience")
+        _section_header(doc, "Professional Experience")
         for job in resume["experience"]:
             dates = " – ".join(v for v in [job.get("start_date"), job.get("end_date")] if v)
             _job_header(

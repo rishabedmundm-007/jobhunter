@@ -17,29 +17,22 @@ EMBEDDING_DIMENSIONS = int(os.environ.get("EMBEDDING_DIMENSIONS", "512"))
 # can override per-profile (see match_threshold on PROFILE), not a hardcoded
 # ceiling.
 DEFAULT_MATCH_THRESHOLD = 0.40
-HAIKU_MODEL_ID = os.environ.get(
-    # Claude Haiku 4.5 requires invocation via a cross-region inference profile,
-    # not the bare foundation-model ID — verified against the account's actual
-    # Bedrock access at implementation time.
+TAILOR_MODEL_ID = os.environ.get(
+    # Opus 5 is the intended upgrade (better resume-writing quality than
+    # Haiku 4.5 for a trivial per-resume cost difference) but this AWS
+    # account hasn't been granted Bedrock model access for it yet — every
+    # InvokeModel call returns AccessDeniedException until that's enabled in
+    # the console (Bedrock > Model access), so this stays on the
+    # confirmed-working model until that's done. Flip this the moment access
+    # is granted.
     "TAILOR_MODEL_ID",
     "us.anthropic.claude-haiku-4-5-20251001-v1:0",
 )
 
-# Shared JSON shape for both the parsed base resume and any tailored rewrite of it,
-# so rendering to .docx never needs a translation layer between the two.
-RESUME_SCHEMA_DESCRIPTION = """{
-  "contact": {"name": string, "email": string, "phone": string, "location": string},
-  "summary": string,
-  "skills": [string, ...],
-  "experience": [
-    {"company": string, "title": string, "location": string, "start_date": string,
-     "end_date": string, "bullets": [string, ...]}
-  ],
-  "education": [
-    {"school": string, "degree": string, "field": string, "graduation_date": string}
-  ],
-  "certifications": [string, ...]
-}"""
+# Both structuring and tailoring need headroom for a dense, multi-job resume
+# with categorized skills and inline bold emphasis — 4096 risked truncating a
+# 2-page resume's worth of bullets mid-JSON.
+RESUME_MAX_TOKENS = 8192
 
 
 def embed_text(text: str) -> List[float]:
@@ -64,7 +57,7 @@ def _invoke_claude(system_prompt: str, user_message: str, max_tokens: int = 4096
             "messages": [{"role": "user", "content": user_message}],
         }
     )
-    resp = bedrock.invoke_model(modelId=HAIKU_MODEL_ID, body=body)
+    resp = bedrock.invoke_model(modelId=TAILOR_MODEL_ID, body=body)
     payload = json.loads(resp["body"].read())
     return payload["content"][0]["text"]
 
@@ -89,7 +82,7 @@ def structure_resume(resume_text: str) -> Dict[str, Any]:
     prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "resume-structure.md")
     with open(prompt_path) as f:
         system_prompt = f.read()
-    raw = _invoke_claude(system_prompt, resume_text[:20000])
+    raw = _invoke_claude(system_prompt, resume_text[:20000], max_tokens=RESUME_MAX_TOKENS)
     return _extract_json(raw)
 
 
@@ -106,5 +99,5 @@ def tailor_resume(
             "target_profile": preferences,
         }
     )
-    raw = _invoke_claude(system_prompt, user_message)
+    raw = _invoke_claude(system_prompt, user_message, max_tokens=RESUME_MAX_TOKENS)
     return _extract_json(raw)

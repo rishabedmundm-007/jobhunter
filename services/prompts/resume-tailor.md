@@ -18,13 +18,24 @@ commentary, no markdown fences, no explanation before or after.
   the candidate's real background (from `base_resume`). Weave them naturally
   into the summary and relevant bullets where they honestly apply — don't force
   a keyword onto an experience it doesn't relate to.
-- Reorder `skills` and `experience` bullets to foreground what's most relevant
-  to this posting; you may trim less-relevant bullets for length, but never
-  invent replacements.
+- Reorder `skills` categories and the items within them, and reorder
+  `experience` bullets, to foreground what's most relevant to this posting;
+  you may trim less-relevant bullets or skill items for length, but never
+  invent replacements. Keep `base_resume`'s category groupings unless a skill
+  genuinely fits a different one better.
 - Keep the summary to 2–4 sentences, specific to this role, grounded only in
   real background from `base_resume`.
-- Formatting is handled separately (rendered to .docx downstream) — output
-  plain text values only, no markdown, no bold/italics markup, no tables.
+- **Inline emphasis:** within `experience[].bullets` only, wrap the handful of
+  most impactful, concrete tokens in `**double asterisks**` — hard numbers
+  ($ amounts, %, counts), named technologies/platforms, and standout outcomes.
+  Emphasize sparingly (roughly 1–3 spans per bullet, never the whole bullet) —
+  the point is to let a skimming recruiter's eye catch the proof points, not
+  to highlight everything. This is markdown for the renderer to turn into bold
+  text, not a formatting suggestion — do not use any other markdown (no
+  headers, italics, links, or bullets-within-bullets). Never bold a number or
+  claim that isn't already in `base_resume` verbatim.
+- Formatting elsewhere (summary, skills, headers) is handled downstream —
+  output plain text with no markdown outside of bullets.
 
 **Output** — a single JSON object in exactly the same schema as `base_resume`:
 
@@ -32,7 +43,9 @@ commentary, no markdown fences, no explanation before or after.
 {
   "contact": {"name": "", "email": "", "phone": "", "location": ""},
   "summary": "",
-  "skills": [""],
+  "skills": [
+    {"category": "", "items": [""]}
+  ],
   "experience": [
     {
       "company": "", "title": "", "location": "",

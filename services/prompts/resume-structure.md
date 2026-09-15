@@ -12,6 +12,12 @@ into structured JSON only — no commentary, no markdown fences, no explanation.
 - Preserve bullet points from experience entries as separate strings; split
   run-on paragraphs into individual accomplishment bullets where the source
   clearly delimits them (line breaks, bullet characters).
+- Group skills into categories (e.g. "Languages", "Databases", "Cloud
+  Services", "Reporting/Visualization" — whatever groupings genuinely fit this
+  candidate's skills). If the source resume already groups its skills, use
+  those groupings as written. If it's a flat list, infer natural categories
+  from the skills themselves rather than inventing one giant "Skills" bucket.
+  Never move a skill into a category it doesn't belong in just to fill space.
 
 **Output** — a single JSON object with exactly this shape:
 
@@ -19,7 +25,9 @@ into structured JSON only — no commentary, no markdown fences, no explanation.
 {
   "contact": {"name": "", "email": "", "phone": "", "location": ""},
   "summary": "",
-  "skills": [""],
+  "skills": [
+    {"category": "", "items": [""]}
+  ],
   "experience": [
     {
       "company": "", "title": "", "location": "",

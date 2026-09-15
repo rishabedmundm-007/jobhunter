@@ -16,7 +16,7 @@ from typing import Any, Dict
 
 import boto3
 
-from shared.bedrock import HAIKU_MODEL_ID, tailor_resume
+from shared.bedrock import TAILOR_MODEL_ID, tailor_resume
 from shared.ddb import get_job, get_profile, put_resume_version, update_job
 from shared.docx_render import render_resume_docx
 from shared.broadcast import broadcast_to_user
@@ -95,7 +95,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
         job_id,
         {
             "s3_key": s3_key,
-            "model_id": HAIKU_MODEL_ID,
+            "model_id": TAILOR_MODEL_ID,
             "prompt_version": PROMPT_VERSION,
             "ats_report": ats_report,
             "created_at": now,
